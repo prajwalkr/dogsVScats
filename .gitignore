@@ -1,4 +1,11 @@
 /train
-test.zip
+/test
 *.pyc
 data
+models/
+*.h5
+*.png
+kaggleTest
+*.tar.gz
+dogImages/
+*jpg
