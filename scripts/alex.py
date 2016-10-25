@@ -8,6 +8,7 @@ import numpy as np
 from customlayers import convolution2Dgroup, crosschannelnormalization, \
 	splittensor, Softmax4D
 from os.path import dirname, abspath
+from keras.regularizers import l2
 
 def pop_layer(model):
 	model.layers[-1].outbound_nodes = []
@@ -65,9 +66,11 @@ def alex(weights_path=None):
 		model.load_weights(weights_path)
 
 	# finetune only the dense layers
-	dense_1 = Dense(1024, activation='relu',name='dense_1',W_constraint=maxnorm(3))(flat)
+	dense_1 = Dense(1024, activation='relu',name='dense_1',W_constraint=maxnorm(3),
+					W_regularizer=l2())(flat)
 	dense_2 = Dropout(0.5)(dense_1)
-	dense_2 = Dense(512, activation='relu',name='dense_2',W_constraint=maxnorm(3))(dense_2)
+	dense_2 = Dense(512, activation='relu',name='dense_2',W_constraint=maxnorm(3),
+					W_regularizer=l2())(dense_2)
 	dense_3 = Dropout(0.5)(dense_2)
 	dense_3 = Dense(1,name='dense_3',activation='sigmoid')(dense_3)
 

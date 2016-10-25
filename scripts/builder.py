@@ -38,8 +38,9 @@ def main(op):
         print 'Building training data..'
         catImages = [TRAIN_DIR + fname for fname in os.listdir(TRAIN_DIR) if 'cat' in fname]
         dogImages = [TRAIN_DIR + fname for fname in os.listdir(TRAIN_DIR) if 'dog' in fname]
-        cat_train, cat_test = catImages[:-3125],catImages[-3125:]
-        dog_train, dog_test = dogImages[:-3125],dogImages[-3125:]
+        splitcat, splitdog = len(catImages) >> 2, len(dogImages) >> 1
+        cat_train, cat_test = catImages[:-splitcat],catImages[-splitcat:]
+        dog_train, dog_test = dogImages[:-splitdog],dogImages[-splitdog:]
         cats = prep_data(cat_train) 
         dogs = prep_data(dog_train) 
         dumper(np.asarray([cats,dogs]))

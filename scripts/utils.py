@@ -1,12 +1,13 @@
 from keras.utils.visualize_util import plot
 import cv2
 import numpy as np
-import h5py
+import h5py, pickle
 from os.path import abspath, dirname
+from os import listdir
 import scipy as sp
 from datetime import datetime
+from builder import prep_data
 
-ROW, COL, CHANNELS = 227,227,3
 ROOT = dirname(dirname(abspath(__file__)))
 
 def logloss(act, pred):
@@ -17,33 +18,59 @@ def logloss(act, pred):
     return ll
 
 def visualizer(model):
-	plot(model, to_file='vis.png', show_shapes=True)
+	plot(model, to_file=ROOT + 'vis.png', show_shapes=True)
 
-def resizer(X):
-	Y = np.ndarray((len(X), CHANNELS, ROW, COL), dtype=np.float32)
+def resizer(X,shape):
+	if len(shape) != 4 or shape[0] != len(X): raise ValueError("Shape improper")
+	l, CHANNELS, ROW, COL = shape
+	Y = np.ndarray((l, CHANNELS, ROW, COL), dtype=np.float32)
 	for i in xrange(len(X)):
 		Y[i] = cv2.resize(X[i].T,(ROW,COL)).T
 	return Y
 
-def tester(model,img_path=None):
+def kaggleTest(topModel, vgg=None):
+	TEST_DIR = ROOT + '/test/'
+	fnames = [TEST_DIR + fname for fname in listdir(TEST_DIR)]
+	X = prep_data(fnames)
+	if vgg:
+		X = resizer(X, shape=(len(X),) + vgg.layers[0].input_shape[1:])
+		X = vgg.predict(X, verbose=1)
+	else:
+		X = resizer(X, shape=(len(X,)) + topModel.layers[0].input_shape[1:])
+
+	ids = [x[:-4] for x in [fname for fname in listdir(TEST_DIR)]]
+	y = topModel.predict(X,verbose=1)
+	with open(ROOT + 'out.csv','w') as f:
+		f.write('id,label\n')
+		for i,pred in zip(ids,y):
+			f.write('{},{}\n'.format(i,str(pred[0])))
+
+def tester(topModel,vgg=None,img_path=None):
 	if img_path is None:
 		path = ROOT + '/test.h5'
 		with h5py.File(path) as hf:
 			cats, dogs = hf.get('data')
-			X = 255*resizer(np.concatenate((cats, dogs)))
-			y = model.predict(X,verbose=1)
-			ll = 0.0
-			for pred in y[:len(X)/2]:
-				ll += logloss(0, pred[0])
-			for pred in y[len(X)/2:]:
-				ll += logloss(1, pred[0])
-			print -ll/len(X)
+		X = np.concatenate((cats, dogs))
+		visualizer(topModel)
+		if vgg:
+			X = resizer(X, (len(X),) + vgg.layers[0].input_shape[1:])
+			X = vgg.predict(X, verbose=1)
+		else:
+			X = resizer(X, (len(X),) + topModel.layers[0].input_shape[1:])
+		
+		y = topModel.predict(X,verbose=1)
+		ll = 0.0
+		for pred in y[:len(X)/2]:
+			ll += logloss(0, pred[0])
+		for pred in y[len(X)/2:]:
+			ll += logloss(1, pred[0])
+		print -ll/len(y)
 		return 
 	img = cv2.imread(img_path,0 if CHANNELS == 1 else 3)
 	img = cv2.resize(img, (ROW,COL))
 	x = img.astype(np.float32)
 	x = x.reshape(1,CHANNELS,ROW,COL)
-	y = model.predict(x)[0]
+	y = topModel.predict(x)[0]
 	print y
 
 def dumper(model,kind,fname=None):

@@ -9,3 +9,5 @@ kaggleTest
 *.tar.gz
 dogImages/
 *jpg
+*.tar
+*npy
