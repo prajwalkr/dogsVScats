@@ -31,12 +31,12 @@ def resizer(X,shape):
 def kaggleTest(topModel, vgg=None):
 	TEST_DIR = ROOT + '/test/'
 	fnames = [TEST_DIR + fname for fname in listdir(TEST_DIR)]
-	X = prep_data(fnames)
+	X = pickle.load(open(ROOT + '/kaggleTest','r'))
 	if vgg:
 		X = resizer(X, shape=(len(X),) + vgg.layers[0].input_shape[1:])
 		X = vgg.predict(X, verbose=1)
 	else:
-		X = resizer(X, shape=(len(X,)) + topModel.layers[0].input_shape[1:])
+		X = resizer(X, shape=(len(X),) + topModel.layers[0].input_shape[1:])
 
 	ids = [x[:-4] for x in [fname for fname in listdir(TEST_DIR)]]
 	y = topModel.predict(X,verbose=1)
@@ -51,7 +51,6 @@ def tester(topModel,vgg=None,img_path=None):
 		with h5py.File(path) as hf:
 			cats, dogs = hf.get('data')
 		X = np.concatenate((cats, dogs))
-		visualizer(topModel)
 		if vgg:
 			X = resizer(X, (len(X),) + vgg.layers[0].input_shape[1:])
 			X = vgg.predict(X, verbose=1)
