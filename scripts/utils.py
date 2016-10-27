@@ -1,4 +1,5 @@
 from keras.utils.visualize_util import plot
+from keras.preprocessing.image import ImageDataGenerator
 import cv2
 import numpy as np
 import h5py, pickle
@@ -28,18 +29,17 @@ def resizer(X,shape):
 		Y[i] = cv2.resize(X[i].T,(ROW,COL)).T
 	return Y
 
-def kaggleTest(topModel, vgg=None):
+def test_data_gen(fnames):
+	return prep_data(fnames[i:min(i + batch_size,len(fnames))])
+
+def kaggleTest(model):
 	TEST_DIR = ROOT + '/test/'
 	fnames = [TEST_DIR + fname for fname in listdir(TEST_DIR)]
-	X = pickle.load(open(ROOT + '/kaggleTest','r'))
-	if vgg:
-		X = resizer(X, shape=(len(X),) + vgg.layers[0].input_shape[1:])
-		X = vgg.predict(X, verbose=1)
-	else:
-		X = resizer(X, shape=(len(X),) + topModel.layers[0].input_shape[1:])
 
 	ids = [x[:-4] for x in [fname for fname in listdir(TEST_DIR)]]
-	y = topModel.predict(X,verbose=1)
+	X = prep_data(fnames)
+	y = model.predict(X,val_samples=len(fnames))
+
 	with open(ROOT + 'out.csv','w') as f:
 		f.write('id,label\n')
 		for i,pred in zip(ids,y):
@@ -57,14 +57,14 @@ def tester(topModel,vgg=None,img_path=None):
 		else:
 			X = resizer(X, (len(X),) + topModel.layers[0].input_shape[1:])
 		
-		y = topModel.predict(X,verbose=1)
+		y = topModel.predict(X,batch_size=8,verbose=1)
 		ll = 0.0
 		for pred in y[:len(X)/2]:
 			ll += logloss(0, pred[0])
 		for pred in y[len(X)/2:]:
 			ll += logloss(1, pred[0])
 		print -ll/len(y)
-		return 
+		return y
 	img = cv2.imread(img_path,0 if CHANNELS == 1 else 3)
 	img = cv2.resize(img, (ROW,COL))
 	x = img.astype(np.float32)
