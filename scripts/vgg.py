@@ -3,7 +3,7 @@ from keras.layers.core import Flatten, Dense, Dropout
 from keras.layers.convolutional import Convolution2D, MaxPooling2D, ZeroPadding2D
 from keras.constraints import maxnorm
 from keras.optimizers import RMSprop, SGD
-from keras.regularizers import l2
+from keras.regularizers import l2, activity_l2
 from keras.callbacks import ModelCheckpoint
 from keras.preprocessing.image import ImageDataGenerator
 from os.path import dirname, abspath
@@ -15,7 +15,7 @@ from scipy import ndimage
 from random import randint, choice
 from sys import setrecursionlimit, argv
 
-from utils import dumper, resizer, tester, kaggleTest, visualizer
+from utils import dumper, resizer, tester, kaggleTest, visualizer, segTest
 
 
 ROOT = dirname(dirname(abspath(__file__)))
@@ -71,7 +71,7 @@ def VGG_16():
     CNNmodel.add(ZeroPadding2D((1, 1)))
     CNNmodel.add(Convolution2D(512, 3, 3, activation='relu', name='conv4_2', trainable=False))
     CNNmodel.add(ZeroPadding2D((1, 1)))
-    CNNmodel.add(Convolution2D(512, 3, 3, activation='relu', name='conv4_3'))
+    CNNmodel.add(Convolution2D(512, 3, 3, activation='relu', name='conv4_3', trainable=False))
     CNNmodel.add(MaxPooling2D((2, 2), strides=(2, 2)))
 
     CNNmodel.add(ZeroPadding2D((1, 1)))
@@ -107,11 +107,9 @@ def init_model(preload=None):
     return vgg
 
 def DataGen():
-    train_datagen = ImageDataGenerator(rotation_range=30,
-    width_shift_range=0.2,
-    height_shift_range=0.2,
-    shear_range=0.1,
-    zoom_range=0.2,horizontal_flip=True)
+    train_datagen = ImageDataGenerator(rotation_range=45,
+    width_shift_range=0.2, height_shift_range=0.2,
+    zoom_range=0.2, horizontal_flip=True)
 
     validation_datagen = ImageDataGenerator()
 
@@ -132,7 +130,7 @@ def runner(model, epochs):
     global validation_data
     training_gen, val_gen = DataGen()
 
-    model.compile(optimizer=SGD(lr=1e-5,momentum=0.9), loss='binary_crossentropy')
+    model.compile(optimizer=SGD(1e-5,momentum=0.9), loss='binary_crossentropy')
     checkpoint = ModelCheckpoint('current.h5','val_loss',1,True)
     print 'Model compiled.'
     try:
@@ -148,6 +146,7 @@ def runner(model, epochs):
 
 def main(args):
     mode, preload = args
+    if preload == 'none': preload = None
     model = init_model(preload)
     if mode == 'test':
         return tester(model)

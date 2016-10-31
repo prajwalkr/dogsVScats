@@ -8,8 +8,13 @@ from os import listdir
 import scipy as sp
 from datetime import datetime
 from builder import prep_data
+from shutil import copyfile
 
 ROOT = dirname(dirname(abspath(__file__)))
+TEST_DIR = ROOT + '/test/'
+channels, img_width, img_height = 3, 196, 196
+mini_batch_sz = 8
+ext = '.jpg'
 
 def logloss(act, pred):
     epsilon = 1e-15
@@ -33,37 +38,41 @@ def test_data_gen(fnames):
 	return prep_data(fnames[i:min(i + batch_size,len(fnames))])
 
 def kaggleTest(model):
-	TEST_DIR = ROOT + '/test/'
 	fnames = [TEST_DIR + fname for fname in listdir(TEST_DIR)]
 
 	ids = [x[:-4] for x in [fname for fname in listdir(TEST_DIR)]]
 	X = prep_data(fnames)
-	y = model.predict(X,val_samples=len(fnames))
+	y = model.predict(X,batch_size=8,verbose=1)
 
 	with open(ROOT + 'out.csv','w') as f:
 		f.write('id,label\n')
 		for i,pred in zip(ids,y):
 			f.write('{},{}\n'.format(i,str(pred[0])))
-
+	return zip(ids, y)
+'''
 def tester(topModel,vgg=None,img_path=None):
 	if img_path is None:
-		path = ROOT + '/test.h5'
-		with h5py.File(path) as hf:
-			cats, dogs = hf.get('data')
-		X = np.concatenate((cats, dogs))
-		if vgg:
-			X = resizer(X, (len(X),) + vgg.layers[0].input_shape[1:])
-			X = vgg.predict(X, verbose=1)
-		else:
-			X = resizer(X, (len(X),) + topModel.layers[0].input_shape[1:])
-		
-		y = topModel.predict(X,batch_size=8,verbose=1)
-		ll = 0.0
-		for pred in y[:len(X)/2]:
-			ll += logloss(0, pred[0])
-		for pred in y[len(X)/2:]:
-			ll += logloss(1, pred[0])
-		print -ll/len(y)
+		test_gen = ImageDataGenerator()
+		test_gen = test_gen.flow_from_directory(
+			TEST_DIR,target_size=(img_width, img_height),
+			batch_size=mini_batch_sz,
+			class_mode=None)
+		i = 0
+		cl, dl = 0., 0.
+		total_samples = len(listdir(TEST_DIR + 'cats')) + len(listdir(TEST_DIR + 'dogs'))
+		while i < total_samples:
+			X = test_gen.next()
+			y = topModel.predict(X, batch_size=8)
+			if i % 3 == 0: print i
+			for pred in y[:len(X)/2]:
+				cl += logloss(0, pred[0])
+			for pred in y[len(X)/2:]:
+				dl += logloss(1, pred[0])
+			i += len(X)
+		print cl
+		print dl
+		ll = cl + dl
+		print -ll/total_samples
 		return y
 	img = cv2.imread(img_path,0 if CHANNELS == 1 else 3)
 	img = cv2.resize(img, (ROW,COL))
@@ -71,7 +80,7 @@ def tester(topModel,vgg=None,img_path=None):
 	x = x.reshape(1,CHANNELS,ROW,COL)
 	y = topModel.predict(x)[0]
 	print y
-
+'''
 def dumper(model,kind,fname=None):
 	if not fname:
 		fname = '{}/models/{}-{}.h5'.format(ROOT,
@@ -82,3 +91,11 @@ def dumper(model,kind,fname=None):
 	except IOError:
 		raise IOError('Unable to open: {}'.format(fname))
 	return fname
+
+def segTest(model):
+	pairs = kaggleTest(model)
+	for iD, confidence in pairs:
+		if confidence[0] > 0.999:
+			copyfile(TEST_DIR + iD + ext, ROOT + '/testing/dogs/' + iD + ext)
+		if confidence[0] < 0.001:
+			copyfile(TEST_DIR + iD + ext, ROOT + '/testing/cats/' + iD + ext)
