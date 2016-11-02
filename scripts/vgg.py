@@ -15,7 +15,7 @@ from scipy import ndimage
 from random import randint, choice
 from sys import setrecursionlimit, argv
 
-from utils import dumper, resizer, tester, kaggleTest, visualizer, segTest
+from utils import dumper, resizer, kaggleTest, visualizer, segTest
 
 
 ROOT = dirname(dirname(abspath(__file__)))
@@ -51,12 +51,14 @@ def VGG_16():
     CNNmodel.add(ZeroPadding2D((1, 1)))
     CNNmodel.add(Convolution2D(64, 3, 3, activation='relu', name='conv1_2', trainable=False))
     CNNmodel.add(MaxPooling2D((2, 2), strides=(2, 2)))
+    CNNmodel.add(Dropout(0.2))
 
     CNNmodel.add(ZeroPadding2D((1, 1)))
     CNNmodel.add(Convolution2D(128, 3, 3, activation='relu', name='conv2_1', trainable=False))
     CNNmodel.add(ZeroPadding2D((1, 1)))
     CNNmodel.add(Convolution2D(128, 3, 3, activation='relu', name='conv2_2', trainable=False))
     CNNmodel.add(MaxPooling2D((2, 2), strides=(2, 2)))
+    CNNmodel.add(Dropout(0.5))
 
     CNNmodel.add(ZeroPadding2D((1, 1)))
     CNNmodel.add(Convolution2D(256, 3, 3, activation='relu', name='conv3_1', trainable=False))
@@ -65,6 +67,7 @@ def VGG_16():
     CNNmodel.add(ZeroPadding2D((1, 1)))
     CNNmodel.add(Convolution2D(256, 3, 3, activation='relu', name='conv3_3', trainable=False))
     CNNmodel.add(MaxPooling2D((2, 2), strides=(2, 2)))
+    CNNmodel.add(Dropout(0.5))
 
     CNNmodel.add(ZeroPadding2D((1, 1)))
     CNNmodel.add(Convolution2D(512, 3, 3, activation='relu', name='conv4_1', trainable=False))
@@ -73,6 +76,7 @@ def VGG_16():
     CNNmodel.add(ZeroPadding2D((1, 1)))
     CNNmodel.add(Convolution2D(512, 3, 3, activation='relu', name='conv4_3', trainable=False))
     CNNmodel.add(MaxPooling2D((2, 2), strides=(2, 2)))
+    CNNmodel.add(Dropout(0.5))
 
     CNNmodel.add(ZeroPadding2D((1, 1)))
     CNNmodel.add(Convolution2D(512, 3, 3, activation='relu', name='conv5_1'))
@@ -81,6 +85,7 @@ def VGG_16():
     CNNmodel.add(ZeroPadding2D((1, 1)))
     CNNmodel.add(Convolution2D(512, 3, 3, activation='relu', name='conv5_3'))
     CNNmodel.add(MaxPooling2D((2, 2), strides=(2, 2)))
+    CNNmodel.add(Dropout(0.5))
 
     model = Sequential()
     
