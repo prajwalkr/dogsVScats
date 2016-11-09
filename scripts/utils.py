@@ -1,4 +1,4 @@
-from keras.utils.visualize_util import plot
+#from keras.utils.visualize_util import plot
 from keras.preprocessing.image import ImageDataGenerator
 import cv2
 import numpy as np
@@ -12,8 +12,8 @@ from shutil import copyfile
 
 ROOT = dirname(dirname(abspath(__file__)))
 TEST_DIR = ROOT + '/test/'
-channels, img_width, img_height = 3, 196, 196
-mini_batch_sz = 8
+channels, img_width, img_height = 3, 224, 224
+mini_batch_sz = 4
 ext = '.jpg'
 
 def logloss(act, pred):

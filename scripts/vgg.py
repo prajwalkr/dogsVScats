@@ -1,5 +1,5 @@
 from keras.models import Sequential, load_model
-from keras.layers.core import Flatten, Dense, Dropout
+from keras.layers.core import Flatten, Dense, Dropout, Activation
 from keras.layers.convolutional import Convolution2D, MaxPooling2D, ZeroPadding2D
 from keras.constraints import maxnorm
 from keras.optimizers import RMSprop, SGD
@@ -25,12 +25,12 @@ num_cats_train = len(listdir(TRAIN_DIR + '/cats'))
 num_dogs_train = len(listdir(TRAIN_DIR + '/dogs'))
 num_cats_val = len(listdir(VAL_DIR + '/cats'))
 num_dogs_val = len(listdir(VAL_DIR + '/dogs'))
-
 samples_per_epoch = num_cats_train + num_dogs_train
 nb_val_samples = num_cats_val + num_dogs_val
 
-channels, img_width, img_height = 3, 196, 196
-mini_batch_sz = 8
+channels, img_width, img_height = 3, 224, 224
+mini_batch_sz = 4
+mean_train_image = pickle.load(open('mean_train_image','r'))
 
 def weight_loader(cnnmodel):
     with h5py.File(weights_path) as f:
@@ -42,7 +42,7 @@ def weight_loader(cnnmodel):
             weights = [g['param_{}'.format(p)] for p in range(g.attrs['nb_params'])]
             cnnmodel.layers[k].set_weights(weights)
     return cnnmodel
-    
+
 def VGG_16():
     CNNmodel = Sequential()
 
@@ -51,14 +51,14 @@ def VGG_16():
     CNNmodel.add(ZeroPadding2D((1, 1)))
     CNNmodel.add(Convolution2D(64, 3, 3, activation='relu', name='conv1_2', trainable=False))
     CNNmodel.add(MaxPooling2D((2, 2), strides=(2, 2)))
-    CNNmodel.add(Dropout(0.2))
+    #CNNmodel.add(Dropout(0.1))
 
     CNNmodel.add(ZeroPadding2D((1, 1)))
     CNNmodel.add(Convolution2D(128, 3, 3, activation='relu', name='conv2_1', trainable=False))
     CNNmodel.add(ZeroPadding2D((1, 1)))
     CNNmodel.add(Convolution2D(128, 3, 3, activation='relu', name='conv2_2', trainable=False))
     CNNmodel.add(MaxPooling2D((2, 2), strides=(2, 2)))
-    CNNmodel.add(Dropout(0.5))
+    #CNNmodel.add(Dropout(0.2))
 
     CNNmodel.add(ZeroPadding2D((1, 1)))
     CNNmodel.add(Convolution2D(256, 3, 3, activation='relu', name='conv3_1', trainable=False))
@@ -67,7 +67,7 @@ def VGG_16():
     CNNmodel.add(ZeroPadding2D((1, 1)))
     CNNmodel.add(Convolution2D(256, 3, 3, activation='relu', name='conv3_3', trainable=False))
     CNNmodel.add(MaxPooling2D((2, 2), strides=(2, 2)))
-    CNNmodel.add(Dropout(0.5))
+    #CNNmodel.add(Dropout(0.3))
 
     CNNmodel.add(ZeroPadding2D((1, 1)))
     CNNmodel.add(Convolution2D(512, 3, 3, activation='relu', name='conv4_1', trainable=False))
@@ -76,23 +76,24 @@ def VGG_16():
     CNNmodel.add(ZeroPadding2D((1, 1)))
     CNNmodel.add(Convolution2D(512, 3, 3, activation='relu', name='conv4_3', trainable=False))
     CNNmodel.add(MaxPooling2D((2, 2), strides=(2, 2)))
-    CNNmodel.add(Dropout(0.5))
+    #CNNmodel.add(Dropout(0.3))
 
     CNNmodel.add(ZeroPadding2D((1, 1)))
-    CNNmodel.add(Convolution2D(512, 3, 3, activation='relu', name='conv5_1'))
+    CNNmodel.add(Convolution2D(512, 3, 3, activation='relu', name='conv5_1', trainable=False))
     CNNmodel.add(ZeroPadding2D((1, 1)))
-    CNNmodel.add(Convolution2D(512, 3, 3, activation='relu', name='conv5_2'))
+    CNNmodel.add(Convolution2D(512, 3, 3, activation='relu', name='conv5_2', trainable=False))
     CNNmodel.add(ZeroPadding2D((1, 1)))
-    CNNmodel.add(Convolution2D(512, 3, 3, activation='relu', name='conv5_3'))
+    CNNmodel.add(Convolution2D(512, 3, 3, activation='relu', name='conv5_3', trainable=False))
     CNNmodel.add(MaxPooling2D((2, 2), strides=(2, 2)))
-    CNNmodel.add(Dropout(0.5))
+    #CNNmodel.add(Dropout(0.5))
 
+    CNNmodel = weight_loader(CNNmodel)
     model = Sequential()
     
     model.add(Flatten(input_shape=CNNmodel.layers[-1].output_shape[1:]))
-    model.add(Dense(1024, activation='relu', W_constraint=maxnorm(3), W_regularizer=l2()))
-    model.add(Dropout(0.5))
-    model.add(Dense(512, activation='relu', W_constraint=maxnorm(3), W_regularizer=l2()))
+    '''model.add(Dense(512, activation='relu', W_constraint=maxnorm(3)))
+    model.add(Dropout(0.5))'''
+    model.add(Dense(256, activation='relu', W_constraint=maxnorm(3)))
     model.add(Dropout(0.5))
     model.add(Dense(1, activation='sigmoid'))
 
@@ -104,6 +105,9 @@ def init_model(preload=None):
     '''if preload:
         return load_model(preload)'''
 
+    if preload == 'custom':
+        return custom()
+
     vgg = VGG_16()
     
     if preload:
@@ -111,10 +115,38 @@ def init_model(preload=None):
 
     return vgg
 
+def histeq(im,nbr_bins=256):
+
+   #get image histogram
+   imhist,bins = np.histogram(im.flatten(),nbr_bins,normed=True)
+   cdf = imhist.cumsum() #cumulative distribution function
+   cdf = 255 * cdf / cdf[-1] #normalize
+
+   #use linear interpolation of cdf to find new pixel values
+   im2 = np.interp(im.flatten(),bins[:-1],cdf)
+
+   return im2.reshape(im.shape)
+
+def sub_mean(img):
+    means = [103.939, 116.779, 123.68]
+    for i in xrange(3):
+        img[i] -= means[i]
+    img[0], img[2] = img[2], img[0]
+    return img
+
+def customgen(gen):
+    while 1:
+        X,y = gen.next()
+        for i in xrange(len(X)):
+            #X[i] = histeq(X[i])
+            X[i] = sub_mean(X[i])
+        yield X, y
+
 def DataGen():
-    train_datagen = ImageDataGenerator(rotation_range=45,
-    width_shift_range=0.2, height_shift_range=0.2,
-    zoom_range=0.2, horizontal_flip=True)
+    '''train_datagen = ImageDataGenerator(rotation_range=45,
+    width_shift_range=0.2, height_shift_range=0.2, channel_shift_range=20.,
+    zoom_range=0.2, horizontal_flip=True)'''
+    train_datagen = ImageDataGenerator(rotation_range=45, horizontal_flip=True)
 
     validation_datagen = ImageDataGenerator()
 
@@ -129,13 +161,13 @@ def DataGen():
         batch_size=mini_batch_sz,
         class_mode='binary')
 
-    return train_generator, validation_generator
+    return train_generator, customgen(validation_generator)
 
 def runner(model, epochs):
     global validation_data
     training_gen, val_gen = DataGen()
 
-    model.compile(optimizer=SGD(1e-5,momentum=0.9), loss='binary_crossentropy')
+    model.compile(optimizer=SGD(5e-5, momentum=0.9, nesterov=True), loss='binary_crossentropy')
     checkpoint = ModelCheckpoint('current.h5','val_loss',1,True)
     print 'Model compiled.'
     try:
@@ -159,7 +191,7 @@ def main(args):
         return kaggleTest(model)
     if mode == 'vis':
         return visualizer(model)
-    return runner(model, 5000)
+    return runner(model, 100)
 
 if __name__ == '__main__':
     main(argv[1:])

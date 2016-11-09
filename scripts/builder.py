@@ -7,7 +7,7 @@ import sys
 ### Defining constants...
 TRAIN_DIR = '../train/'
 TEST_DIR = '../test/'
-IMG_SHAPE = (196,196)
+IMG_SHAPE = (224,224)
 CHANNELS = 3
 
 

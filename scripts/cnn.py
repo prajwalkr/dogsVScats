@@ -65,11 +65,11 @@ def init_model(preload=None,load_weights=False,compileModel=False):
 	model.add(Activation('relu'))
 
 	model.add(Flatten())
-	model.add(Dense(1024,W_constraint=maxnorm(3),W_regularizer=l2(0.01)))
+	model.add(Dense(1024,W_constraint=maxnorm(3)))
 	model.add(Activation('relu'))
 	model.add(Dropout(0.5))
 
-	model.add(Dense(512,W_constraint=maxnorm(3),W_regularizer=l2(0.01)))
+	model.add(Dense(512,W_constraint=maxnorm(3)))
 	model.add(Activation('relu'))
 	model.add(Dropout(0.5))
 
