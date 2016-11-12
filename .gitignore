@@ -5,7 +5,7 @@ data
 models/
 *.h5
 *.png
-kaggleTest
+*.pem
 *.tar.gz
 dogImages/
 *jpg

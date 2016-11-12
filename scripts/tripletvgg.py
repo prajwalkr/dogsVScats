@@ -28,7 +28,7 @@ num_dogs_val = len(listdir(VAL_DIR + '/dogs'))
 samples_per_epoch = num_cats_train + num_dogs_train
 
 channels, img_width, img_height = 3, 224, 224
-mini_batch_sz = 4
+mini_batch_sz = 8
 
 def weight_loader(cnnmodel):
 	with h5py.File(weights_path) as f:
@@ -97,11 +97,11 @@ def VGG_16():
 	fccmodel = Sequential()
 	
 	fccmodel.add(Flatten(input_shape=CNNmodel.layers[-1].output_shape[1:]))
-	'''model.add(Dense(512, activation='relu', W_constraint=maxnorm(3)))
-	model.add(Dropout(0.5))'''
+	fccmodel.add(Dense(512, activation='relu', W_constraint=maxnorm(3)))
+	fccmodel.add(Dropout(0.5))
 	fccmodel.add(Dense(256, activation='relu', W_constraint=maxnorm(3)))
 	fccmodel.add(Dropout(0.5))
-	fccmodel.add(Dense(64, activation='tanh'))
+	fccmodel.add(Dense(64, activation='sigmoid'))
 
 	CNNmodel.add(fccmodel)
 
@@ -124,7 +124,7 @@ def tripletDataGen():
 	global model
 	train_datagen = ImageDataGenerator(rotation_range=45,
 	width_shift_range=0.2, height_shift_range=0.2,
-	zoom_range=0.2, horizontal_flip=True).flow_from_directory(
+	zoom_range=0.2, horizontal_flip=True, vertical_flip=True).flow_from_directory(
 	TRAIN_DIR, target_size=(img_width, img_height),
 	batch_size=3, class_mode='binary')
 
@@ -158,7 +158,7 @@ def runner(epochs):
 	print 'Model training begins..'
 	datagen = tripletDataGen()
 	global model
-	model.compile(optimizer=SGD(1e-2, decay= 1e-4, momentum=0.9), loss=tripletLoss)
+	model.compile(optimizer=SGD(1e-3, decay=1e-5, momentum=0.9, nesterov=True), loss=tripletLoss)
 	#checkpoint = ModelCheckpoint('current.h5','val_loss',1,True)
 	print 'Model compiled.'
 	try:

@@ -1,165 +1,145 @@
-from keras.layers.core import Dense, Activation, Dropout, Flatten
-from keras.layers.convolutional import Convolution2D, ZeroPadding2D
 from keras.models import Sequential, load_model
-from keras.layers.pooling import MaxPooling2D
+from keras.layers.core import Flatten, Dense, Dropout, Activation
+from keras.layers.convolutional import Convolution2D, MaxPooling2D, ZeroPadding2D
+from keras.layers.normalization import BatchNormalization
+from keras.layers.advanced_activations import PReLU
 from keras.constraints import maxnorm
 from keras.optimizers import RMSprop, SGD
-from keras.regularizers import l2
+from keras.regularizers import l2, activity_l2
 from keras.callbacks import ModelCheckpoint
+from keras.preprocessing.image import ImageDataGenerator
 from os.path import dirname, abspath
 from os import listdir
-from utils import dumper
-import h5py
 import numpy as np
-from builder import prep_data
+import h5py, pickle
+from os.path import dirname, abspath
 from scipy import ndimage
 from random import randint, choice
-import cv2
-from utils import resizer
-from scripts.alex import alex
-from scripts.vgg import VGG_16 as vgg
-import pickle
-from sys import setrecursionlimit
+from sys import setrecursionlimit, argv
+
+from utils import dumper, resizer, kaggleTest, visualizer, segTest
+
 
 ROOT = dirname(dirname(abspath(__file__)))
+TRAIN_DIR, VAL_DIR = ROOT + '/train', ROOT + '/validation'
+num_cats_train = len(listdir(TRAIN_DIR + '/cats'))
+num_dogs_train = len(listdir(TRAIN_DIR + '/dogs'))
+num_cats_val = len(listdir(VAL_DIR + '/cats'))
+num_dogs_val = len(listdir(VAL_DIR + '/dogs'))
+samples_per_epoch = num_cats_train + num_dogs_train
+nb_val_samples = num_cats_val + num_dogs_val
 
-def kaggleTest(model):
-	TEST_DIR = dirname(dirname(abspath(__file__))) + '/test/'
-	fnames = [TEST_DIR + fname for fname in listdir(TEST_DIR)]
-	X = prep_data(fnames)
-	X = resizer(X)
-	ids = [x[:-4] for x in [fname for fname in listdir(TEST_DIR)]]
-	y = model.predict(X,verbose=1)
-	with open('out.csv','w') as f:
-		f.write('id,label\n')
-		for i,pred in zip(ids,y):
-			f.write('{},{}\n'.format(i,str(pred[0])))
-	
-def init_model(preload=None,load_weights=False,compileModel=False):
-	print 'Building model...'
+channels, img_width, img_height = 3, 150, 150
+mini_batch_sz = 4
 
-	
-	if preload:
-		return load_model(preload)
+def init_model(preload=None):
+    '''if preload:
+        return load_model(preload)'''
 
-	model = Sequential()
+    model = Sequential()
+    model.add(ZeroPadding2D((1, 1), input_shape=(channels, img_width, img_height)))
+    model.add(Convolution2D(32, 3, 3, activation = "linear"))
+    model.add(BatchNormalization(axis=1))
+    model.add(PReLU())
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(32, 3, 3, activation = "linear"))#, W_regularizer=l2(0.0001)))
+    model.add(BatchNormalization(axis=1))
+    model.add(PReLU())
+    model.add(MaxPooling2D(pool_size=(3,3))) #if image is 150x150
+    ###
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(64, 3, 3, activation = "linear"))#, W_regularizer=l2(0.0001)))
+    model.add(BatchNormalization(axis=1))
+    model.add(PReLU())
+    model.add(Convolution2D(64, 3, 3, activation = "linear"))#, W_regularizer=l2(0.0001)))
+    model.add(BatchNormalization(axis=1))
+    model.add(PReLU())
+    model.add(MaxPooling2D(pool_size=(2,2)))
+    ###
+    model.add(Convolution2D(128, 3, 3, activation = "linear"))#, W_regularizer=l2(0.0001)))
+    model.add(BatchNormalization(axis=1))
+    model.add(PReLU())
+    model.add(Convolution2D(128, 3, 3, activation = "linear"))#, W_regularizer=l2(0.0001)))
+    model.add(BatchNormalization(axis=1))
+    model.add(PReLU())
+    model.add(MaxPooling2D(pool_size=(2,2)))
+    ###
+    model.add(Convolution2D(256, 3, 3, activation = "linear"))#, W_regularizer=l2(0.0001)))
+    model.add(BatchNormalization(axis=1))
+    model.add(PReLU())
+    model.add(Convolution2D(256, 3, 3, activation = "linear"))#, W_regularizer=l2(0.0001)))
+    model.add(BatchNormalization(axis=1))
+    model.add(PReLU())
+    model.add(MaxPooling2D(pool_size=(6,6)))
 
-	model.add(Convolution2D(nb_filter=32,nb_row=3,nb_col=3,
-							input_shape=(3, 128, 128)))
-	model.add(Activation('relu'))
-	model.add(MaxPooling2D())
+    # MLP
+    model.add(Flatten())
+    model.add(Dense(1024, activation="linear"))#, W_regularizer=l2(0.0001)))
+    model.add(BatchNormalization())
+    model.add(PReLU())
+    #model.add(Dropout(p=0.4))
+    model.add(Dense(512, activation="linear"))#, W_regularizer=l2(0.0001)))
+    model.add(BatchNormalization())
+    model.add(PReLU())
+    #model.add(Dropout(p=0.4))
+    model.add(Dense(2, activation="linear"))#, W_regularizer=l2(0.0001)))
+    model.add(BatchNormalization())
+    model.add(Activation("softmax"))
 
-	model.add(Convolution2D(nb_filter=32,nb_row=2,nb_col=2))
-	model.add(Activation('relu'))
-	model.add(MaxPooling2D())
+    if preload:
+        model.load_weights(preload)
 
-	model.add(Convolution2D(64,2,2))
-	model.add(Activation('relu'))
-	model.add(MaxPooling2D())
-
-	model.add(Convolution2D(64,2,2))
-	model.add(Activation('relu'))
-	model.add(MaxPooling2D())
-
-	model.add(Convolution2D(128,2,2))
-	model.add(Activation('relu'))
-
-	model.add(Flatten())
-	model.add(Dense(1024,W_constraint=maxnorm(3)))
-	model.add(Activation('relu'))
-	model.add(Dropout(0.5))
-
-	model.add(Dense(512,W_constraint=maxnorm(3)))
-	model.add(Activation('relu'))
-	model.add(Dropout(0.5))
-
-	model.add(Dense(2, activation='sigmoid'))
-	model.add(Activation('softmax'))
-
-	if load_weights:
-		model.load_weights(load_weights)
-
-	if compileModel:
-		model.compile(optimizer='adam', loss='binary_crossentropy')
-		print 'Model compiled.'
-
-	return model
-
-def DataAugmenter(X):
-	X = resizer(X)
-	for i in xrange(len(X)):
-		#### rotation
-		if choice([True,False]):
-			X[i] = ndimage.rotate(X[i], randint(-5,5),reshape=False)
-
-		#### translation
-		if choice([True,False]):
-			X[i] = ndimage.shift(X[i], randint(-5,5))
-	
-	return X
-
-def shuffle(X,y):
-	pairs = zip(X,y)
-	np.random.shuffle(pairs)
-	for i, (img, target) in enumerate(pairs):
-		X[i], y[i] = img, target
-	return X,y
+    return model
 
 def DataGen():
-	path = dirname(dirname(abspath(__file__))) + '/train.h5'
-	with h5py.File(path) as hf:
-		cats, dogs = hf.get('data')
+    train_datagen = ImageDataGenerator(rotation_range=45,
+    width_shift_range=0.2, height_shift_range=0.2, channel_shift_range=10.,
+    zoom_range=0.2, horizontal_flip=True,vertical_flip=True)
 
-	cats, dogs = cats - np.mean(cats), dogs - np.mean(dogs)
-	global validation_data, samples_per_epoch
-	cat_train, cat_val = np.split(cats,[int(0.8*len(cats))])
-	dog_train, dog_val = np.split(dogs, [int(0.8*len(dogs))])
+    validation_datagen = ImageDataGenerator()
 
-	val_x = resizer(np.concatenate((cat_val, dog_val)))
-	val_y = np.concatenate((np.array([[1,0]]*len(cat_val),dtype=np.float32),
-							np.array([[0,1]]*len(dog_val),dtype=np.float32)))
-	#validation_data = (val_x, val_y)
-	cat_train,_ = np.split(cat_train, [10])
-	dog_train,_ = np.split(dog_train, [10])
-	validation_data = (resizer(np.concatenate((cat_train, dog_train))), 
-						np.concatenate((np.array([[1,0]]*len(cat_train),dtype=np.float32),
-							np.array([[0,1]]*len(dog_train),dtype=np.float32))))
-	mini_batch_sz = 20
-	split = 10
-	cat,dog = split,mini_batch_sz - split
-	samples_per_epoch = mini_batch_sz*((len(cat_train) + len(dog_train))/mini_batch_sz)
+    train_generator = train_datagen.flow_from_directory(
+        TRAIN_DIR,
+        target_size=(img_width, img_height),
+        batch_size=mini_batch_sz,
+        class_mode='categorical')
 
-	y = np.concatenate((np.array([[1,0]]*len(cat_train),dtype=np.float32),
-							np.array([[0,1]]*len(dog_train),dtype=np.float32)))
-	while 1:
-		indices = np.random.randint(len(cat_train),size=cat)
-		cat_samples = cat_train[indices]
-		indices = np.random.randint(len(cat_train),size=dog)
-		dog_samples = dog_train[indices]
-		X = np.concatenate((cat_samples, dog_samples))
-		X = resizer(X)
-		yield shuffle(X,y)
+    validation_generator = validation_datagen.flow_from_directory(
+        VAL_DIR,target_size=(img_width, img_height),
+        batch_size=mini_batch_sz,
+        class_mode='categorical')
+
+    return train_generator, validation_generator
 
 def runner(model, epochs):
-	global samples_per_epoch, cat_val, dog_val
-	training_data = DataGen()
-	training_data.next()
+    global validation_data
+    training_gen, val_gen = DataGen()
 
-	model.compile(optimizer='adam', loss='binary_crossentropy')
-	checkpoint = ModelCheckpoint('current.h5','val_loss',1,True)
-	print 'Model compiled.'
-	try:
-		model.fit_generator(training_data,samples_per_epoch,epochs,
-						verbose=1,validation_data=validation_data,callbacks=[checkpoint])
-	except Exception as e:
-		print e
-	finally:
-		fname = dumper(model,'cnn')
-		print 'Model saved to disk at {}'.format(fname)
-		return model
+    model.compile(optimizer=SGD(5e-3, decay=1e-5, momentum=0.9, nesterov=True), loss='categorical_crossentropy')
+    checkpoint = ModelCheckpoint('current.h5','val_loss',1,True)
+    print 'Model compiled.'
+    try:
+        model.fit_generator(training_gen,samples_per_epoch,epochs,
+                        verbose=1,validation_data=val_gen,nb_val_samples=nb_val_samples,
+                        callbacks=[checkpoint])
+    except Exception as e:
+        print e
+    finally:
+        fname = dumper(model,'cnn')
+        print 'Model saved to disk at {}'.format(fname)
+        return model
 
-def main(model):
-	return runner(model, 5000)
+def main(args):
+    mode, preload = args
+    if preload == 'none': preload = None
+    model = init_model(preload)
+    if mode == 'test':
+        return tester(model)
+    if mode == 'kaggle':
+        return kaggleTest(model)
+    if mode == 'vis':
+        return visualizer(model)
+    return runner(model, 100)
 
 if __name__ == '__main__':
-	main()
+    main(argv[1:])

@@ -1,27 +1,26 @@
 import os
-import cv2
 import numpy as np
 import h5py
 import sys
+from PIL import Image
 
 ### Defining constants...
 TRAIN_DIR = '../train/'
 TEST_DIR = '../test/'
-IMG_SHAPE = (224,224)
+IMG_SHAPE = (150,150)
 CHANNELS = 3
 
 
 def read_image(file_path):
-    img = cv2.imread(file_path)
-    return cv2.resize(img, IMG_SHAPE, interpolation=cv2.INTER_CUBIC)
+    img = Image.open(file_path).convert('RGB').resize((IMG_SHAPE[0], IMG_SHAPE[1]))
+    return np.asarray(img, dtype='float32').transpose(2, 0 ,1)
 
 def prep_data(images):
     count = len(images)
     data = np.ndarray((count, CHANNELS, IMG_SHAPE[0], IMG_SHAPE[1]), dtype=np.float32)
 
     for i, image_file in enumerate(images):
-        image = read_image(image_file)
-        data[i] = image.T
+        data[i] = read_image(image_file)
         if i%1000 == 0: print('Processed {} of {}'.format(i, count))
     
     return data

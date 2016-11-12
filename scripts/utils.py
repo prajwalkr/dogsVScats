@@ -1,6 +1,5 @@
-#from keras.utils.visualize_util import plot
+from keras.utils.visualize_util import plot
 from keras.preprocessing.image import ImageDataGenerator
-import cv2
 import numpy as np
 import h5py, pickle
 from os.path import abspath, dirname
@@ -12,7 +11,7 @@ from shutil import copyfile
 
 ROOT = dirname(dirname(abspath(__file__)))
 TEST_DIR = ROOT + '/test/'
-channels, img_width, img_height = 3, 224, 224
+channels, img_width, img_height = 3, 150, 150
 mini_batch_sz = 4
 ext = '.jpg'
 
@@ -24,15 +23,7 @@ def logloss(act, pred):
     return ll
 
 def visualizer(model):
-	plot(model, to_file=ROOT + 'vis.png', show_shapes=True)
-
-def resizer(X,shape):
-	if len(shape) != 4 or shape[0] != len(X): raise ValueError("Shape improper")
-	l, CHANNELS, ROW, COL = shape
-	Y = np.ndarray((l, CHANNELS, ROW, COL), dtype=np.float32)
-	for i in xrange(len(X)):
-		Y[i] = cv2.resize(X[i].T,(ROW,COL)).T
-	return Y
+	plot(model, to_file=ROOT + '/vis.png', show_shapes=True)
 
 def test_data_gen(fnames):
 	return prep_data(fnames[i:min(i + batch_size,len(fnames))])
@@ -42,12 +33,12 @@ def kaggleTest(model):
 
 	ids = [x[:-4] for x in [fname for fname in listdir(TEST_DIR)]]
 	X = prep_data(fnames)
-	y = model.predict(X,batch_size=8,verbose=1)
+	y = model.predict(X,batch_size=mini_batch_sz,verbose=1)
 
 	with open(ROOT + 'out.csv','w') as f:
 		f.write('id,label\n')
 		for i,pred in zip(ids,y):
-			f.write('{},{}\n'.format(i,str(pred[0])))
+			f.write('{},{}\n'.format(i,str(pred[1])))
 	return zip(ids, y)
 '''
 def tester(topModel,vgg=None,img_path=None):
