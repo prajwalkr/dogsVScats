@@ -17,7 +17,7 @@ from scipy import ndimage
 from random import randint, choice
 from sys import setrecursionlimit, argv
 
-from utils import dumper, resizer, kaggleTest, visualizer, segTest
+from utils import dumper, kaggleTest, visualizer
 
 
 ROOT = dirname(dirname(abspath(__file__)))
@@ -29,7 +29,7 @@ num_dogs_val = len(listdir(VAL_DIR + '/dogs'))
 samples_per_epoch = num_cats_train + num_dogs_train
 nb_val_samples = num_cats_val + num_dogs_val
 
-channels, img_width, img_height = 3, 150, 150
+channels, img_width, img_height = 3, 224, 224
 mini_batch_sz = 4
 
 def init_model(preload=None):
@@ -42,47 +42,61 @@ def init_model(preload=None):
     model.add(BatchNormalization(axis=1))
     model.add(PReLU())
     model.add(ZeroPadding2D((1, 1)))
-    model.add(Convolution2D(32, 3, 3, activation = "linear"))#, W_regularizer=l2(0.0001)))
+    model.add(Convolution2D(32, 3, 3, activation = "linear"))
     model.add(BatchNormalization(axis=1))
     model.add(PReLU())
-    model.add(MaxPooling2D(pool_size=(3,3))) #if image is 150x150
-    ###
+    model.add(MaxPooling2D(pool_size=(3,3)))
+    
     model.add(ZeroPadding2D((1, 1)))
-    model.add(Convolution2D(64, 3, 3, activation = "linear"))#, W_regularizer=l2(0.0001)))
+    model.add(Convolution2D(64, 3, 3, activation = "linear"))
     model.add(BatchNormalization(axis=1))
     model.add(PReLU())
-    model.add(Convolution2D(64, 3, 3, activation = "linear"))#, W_regularizer=l2(0.0001)))
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(64, 3, 3, activation = "linear"))
+    model.add(BatchNormalization(axis=1))
+    model.add(PReLU())
+    model.add(MaxPooling2D(pool_size=(3,3)))
+    
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(128, 3, 3, activation = "linear"))
+    model.add(BatchNormalization(axis=1))
+    model.add(PReLU())
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(128, 3, 3, activation = "linear"))
     model.add(BatchNormalization(axis=1))
     model.add(PReLU())
     model.add(MaxPooling2D(pool_size=(2,2)))
-    ###
-    model.add(Convolution2D(128, 3, 3, activation = "linear"))#, W_regularizer=l2(0.0001)))
+    
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(256, 3, 3, activation = "linear"))
     model.add(BatchNormalization(axis=1))
     model.add(PReLU())
-    model.add(Convolution2D(128, 3, 3, activation = "linear"))#, W_regularizer=l2(0.0001)))
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(256, 3, 3, activation = "linear"))
     model.add(BatchNormalization(axis=1))
     model.add(PReLU())
     model.add(MaxPooling2D(pool_size=(2,2)))
-    ###
-    model.add(Convolution2D(256, 3, 3, activation = "linear"))#, W_regularizer=l2(0.0001)))
-    model.add(BatchNormalization(axis=1))
-    model.add(PReLU())
-    model.add(Convolution2D(256, 3, 3, activation = "linear"))#, W_regularizer=l2(0.0001)))
-    model.add(BatchNormalization(axis=1))
-    model.add(PReLU())
-    model.add(MaxPooling2D(pool_size=(6,6)))
 
-    # MLP
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(512, 3, 3, activation = "linear"))
+    model.add(BatchNormalization(axis=1))
+    model.add(PReLU())
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(512, 3, 3, activation = "linear"))
+    model.add(BatchNormalization(axis=1))
+    model.add(PReLU())
+    model.add(MaxPooling2D(pool_size=(2,2)))
+
     model.add(Flatten())
-    model.add(Dense(1024, activation="linear"))#, W_regularizer=l2(0.0001)))
+    model.add(Dense(1024, activation="linear"))
     model.add(BatchNormalization())
     model.add(PReLU())
-    #model.add(Dropout(p=0.4))
-    model.add(Dense(512, activation="linear"))#, W_regularizer=l2(0.0001)))
+    #model.add(Dropout(p=0.2))
+    model.add(Dense(512, activation="linear"))
     model.add(BatchNormalization())
     model.add(PReLU())
-    #model.add(Dropout(p=0.4))
-    model.add(Dense(2, activation="linear"))#, W_regularizer=l2(0.0001)))
+    #model.add(Dropout(p=0.2))
+    model.add(Dense(2, activation="linear"))
     model.add(BatchNormalization())
     model.add(Activation("softmax"))
 
@@ -115,7 +129,7 @@ def runner(model, epochs):
     global validation_data
     training_gen, val_gen = DataGen()
 
-    model.compile(optimizer=SGD(5e-3, decay=1e-5, momentum=0.9, nesterov=True), loss='categorical_crossentropy')
+    model.compile(optimizer=SGD(1e-2, momentum=0.9, nesterov=True), loss='categorical_crossentropy')
     checkpoint = ModelCheckpoint('current.h5','val_loss',1,True)
     print 'Model compiled.'
     try:

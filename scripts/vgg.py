@@ -15,7 +15,7 @@ from scipy import ndimage
 from random import randint, choice
 from sys import setrecursionlimit, argv
 
-from utils import dumper, resizer, kaggleTest, visualizer, segTest
+from utils import dumper, kaggleTest, visualizer
 
 
 ROOT = dirname(dirname(abspath(__file__)))
@@ -30,7 +30,6 @@ nb_val_samples = num_cats_val + num_dogs_val
 
 channels, img_width, img_height = 3, 224, 224
 mini_batch_sz = 4
-mean_train_image = pickle.load(open('mean_train_image','r'))
 
 def weight_loader(cnnmodel):
     with h5py.File(weights_path) as f:
@@ -91,8 +90,8 @@ def VGG_16():
     model = Sequential()
     
     model.add(Flatten(input_shape=CNNmodel.layers[-1].output_shape[1:]))
-    '''model.add(Dense(512, activation='relu', W_constraint=maxnorm(3)))
-    model.add(Dropout(0.5))'''
+    model.add(Dense(512, activation='relu', W_constraint=maxnorm(3)))
+    model.add(Dropout(0.5))
     model.add(Dense(256, activation='relu', W_constraint=maxnorm(3)))
     model.add(Dropout(0.5))
     model.add(Dense(1, activation='sigmoid'))
@@ -115,30 +114,17 @@ def init_model(preload=None):
 
     return vgg
 
-def histeq(im,nbr_bins=256):
-
-   #get image histogram
-   imhist,bins = np.histogram(im.flatten(),nbr_bins,normed=True)
-   cdf = imhist.cumsum() #cumulative distribution function
-   cdf = 255 * cdf / cdf[-1] #normalize
-
-   #use linear interpolation of cdf to find new pixel values
-   im2 = np.interp(im.flatten(),bins[:-1],cdf)
-
-   return im2.reshape(im.shape)
-
 def sub_mean(img):
+    img = img[::-1]
     means = [103.939, 116.779, 123.68]
     for i in xrange(3):
         img[i] -= means[i]
-    img[0], img[2] = img[2], img[0]
     return img
 
 def customgen(gen):
     while 1:
         X,y = gen.next()
         for i in xrange(len(X)):
-            #X[i] = histeq(X[i])
             X[i] = sub_mean(X[i])
         yield X, y
 
@@ -161,7 +147,7 @@ def DataGen():
         batch_size=mini_batch_sz,
         class_mode='binary')
 
-    return train_generator, customgen(validation_generator)
+    return customgen(train_generator), customgen(validation_generator)
 
 def runner(model, epochs):
     global validation_data

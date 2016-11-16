@@ -6,14 +6,15 @@ from os.path import abspath, dirname
 from os import listdir
 import scipy as sp
 from datetime import datetime
-from builder import prep_data
 from shutil import copyfile
+from PIL import Image
 
 ROOT = dirname(dirname(abspath(__file__)))
 TEST_DIR = ROOT + '/test/'
-channels, img_width, img_height = 3, 150, 150
+channels, img_width, img_height = 3, 224, 224
 mini_batch_sz = 4
 ext = '.jpg'
+lb, ub = 0.3, 0.7
 
 def logloss(act, pred):
     epsilon = 1e-15
@@ -25,21 +26,58 @@ def logloss(act, pred):
 def visualizer(model):
 	plot(model, to_file=ROOT + '/vis.png', show_shapes=True)
 
-def test_data_gen(fnames):
-	return prep_data(fnames[i:min(i + batch_size,len(fnames))])
+def dog_probab(y):
+	return [pair[1] for pair in y]
+
+def doubtful(pred):
+	return (pred > lb and pred < ub)
+
+def read_image(file_path):
+    img = Image.open(file_path).convert('RGB').resize((img_height, img_width))
+    return np.asarray(img, dtype='float32').transpose(2, 0 ,1)
+
+def prep_data(images):
+    batches = [images[i:min(len(images), i + mini_batch_sz)] 
+                for i in xrange(0, len(images), mini_batch_sz)]
+
+    for mini_batch in batches:
+        data = np.ndarray((mini_batch_sz, CHANNELS, img_height, img_width), 
+                            dtype=np.float32)
+        for image_file in mini_batch:
+            data[i] = read_image(image_file, img_height, img_width)
+        yield data
 
 def kaggleTest(model):
 	fnames = [TEST_DIR + fname for fname in listdir(TEST_DIR)]
 
 	ids = [x[:-4] for x in [fname for fname in listdir(TEST_DIR)]]
 	X = prep_data(fnames)
-	y = model.predict(X,batch_size=mini_batch_sz,verbose=1)
+	i = 0
+	dog_probabs = []
+	for mini_batch in X:
+		y = dog_probab(model.predict(X))
+		for i, pred in enumerate(y):
+			if doubtful(pred):
+				pass
+				# to implement
+		dog_probabs += y
 
 	with open(ROOT + 'out.csv','w') as f:
 		f.write('id,label\n')
-		for i,pred in zip(ids,y):
-			f.write('{},{}\n'.format(i,str(pred[1])))
-	return zip(ids, y)
+		for i,pred in zip(ids,dog_probabs):
+			f.write('{},{}\n'.format(i,str(pred)))
+
+def dumper(model,kind,fname=None):
+	if not fname:
+		fname = '{}/models/{}-{}.h5'.format(ROOT,
+										str(datetime.now()).replace(' ','-'),kind)
+	try:
+		with open(fname,'w') as f:
+			model.save(fname)
+	except IOError:
+		raise IOError('Unable to open: {}'.format(fname))
+	return fname
+
 '''
 def tester(topModel,vgg=None,img_path=None):
 	if img_path is None:
@@ -72,21 +110,3 @@ def tester(topModel,vgg=None,img_path=None):
 	y = topModel.predict(x)[0]
 	print y
 '''
-def dumper(model,kind,fname=None):
-	if not fname:
-		fname = '{}/models/{}-{}.h5'.format(ROOT,
-										str(datetime.now()).replace(' ','-'),kind)
-	try:
-		with open(fname,'w') as f:
-			model.save(fname)
-	except IOError:
-		raise IOError('Unable to open: {}'.format(fname))
-	return fname
-
-def segTest(model):
-	pairs = kaggleTest(model)
-	for iD, confidence in pairs:
-		if confidence[0] > 0.999:
-			copyfile(TEST_DIR + iD + ext, ROOT + '/testing/dogs/' + iD + ext)
-		if confidence[0] < 0.001:
-			copyfile(TEST_DIR + iD + ext, ROOT + '/testing/cats/' + iD + ext)
