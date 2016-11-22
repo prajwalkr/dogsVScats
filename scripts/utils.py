@@ -7,7 +7,8 @@ from os import listdir
 import scipy as sp
 from datetime import datetime
 from shutil import copyfile
-from PIL import Image
+from PIL import Image, ImageEnhance
+from random import randint
 
 ROOT = dirname(dirname(abspath(__file__)))
 TEST_DIR = ROOT + '/test/'
@@ -15,6 +16,7 @@ channels, img_width, img_height = 3, 224, 224
 mini_batch_sz = 4
 ext = '.jpg'
 lb, ub = 0.3, 0.7
+zoom_width, zoom_height, step = 120, 120, 40
 
 def logloss(act, pred):
     epsilon = 1e-15
@@ -22,6 +24,12 @@ def logloss(act, pred):
     pred = min(1-epsilon, pred)
     ll = act*sp.log(pred) + (1-act)*sp.log(1-pred)
     return ll
+
+def to_PIL(image):
+	return Image.fromarray(np.asarray(image.transpose(1, 2, 0), dtype=np.uint8))
+
+def to_theano(image):
+	return np.asarray(image, dtype='float32').transpose(2, 0 ,1)
 
 def visualizer(model):
 	plot(model, to_file=ROOT + '/vis.png', show_shapes=True)
@@ -33,19 +41,40 @@ def doubtful(pred):
 	return (pred > lb and pred < ub)
 
 def read_image(file_path):
-    img = Image.open(file_path).convert('RGB').resize((img_height, img_width))
-    return np.asarray(img, dtype='float32').transpose(2, 0 ,1)
+    return to_theano(Image.open(file_path).convert('RGB').resize((img_height, img_width)))
+
+def write_image(image, file_path):
+	to_PIL(image).save(file_path)
+
+def get_zooms(image):
+	img = Image.fromarray(np.asarray(image.transpose(1, 2, 0), dtype=np.uint8))
+	images = []
+	for x in xrange(0, img_width, step):
+		for y in xrange(0, img_height, step):
+			temp = img
+			images.append(to_theano(temp.crop((x, y, x + zoom_width, y + zoom_height)).resize((img_height, 
+						img_width))))
+	return np.asarray(images)
 
 def prep_data(images):
     batches = [images[i:min(len(images), i + mini_batch_sz)] 
                 for i in xrange(0, len(images), mini_batch_sz)]
 
     for mini_batch in batches:
-        data = np.ndarray((mini_batch_sz, CHANNELS, img_height, img_width), 
+        data = np.ndarray((mini_batch_sz, channels, img_height, img_width), 
                             dtype=np.float32)
-        for image_file in mini_batch:
-            data[i] = read_image(image_file, img_height, img_width)
+        for i, image_file in enumerate(mini_batch):
+            data[i] = read_image(image_file)
         yield data
+
+def getConfident(preds):
+	lessThanLB = [pred for pred in preds if pred < lb]
+	greaterThanUB = [pred for pred in preds if pred > ub]
+	if len(lessThanLB) != 0 and len(greaterThanUB) != 0:
+		raise ValueError
+	if len(lessThanLB) != 0:
+		return min(lessThanLB)
+	return max(greaterThanUB)
 
 def kaggleTest(model):
 	fnames = [TEST_DIR + fname for fname in listdir(TEST_DIR)]
@@ -53,14 +82,19 @@ def kaggleTest(model):
 	ids = [x[:-4] for x in [fname for fname in listdir(TEST_DIR)]]
 	X = prep_data(fnames)
 	i = 0
+	saved = 15
 	dog_probabs = []
+	print 'Beginning prediction phase...'
 	for mini_batch in X:
-		y = dog_probab(model.predict(X))
-		for i, pred in enumerate(y):
+		y = dog_probab(model.predict(mini_batch))
+		'''for j, pred in enumerate(y):
 			if doubtful(pred):
-				pass
-				# to implement
+				saved -= 1
+				write_image(mini_batch[j], ids[i + j] + '.jpg')
+				if saved == 0: return'''
 		dog_probabs += y
+		i += mini_batch_sz
+		if i % 100 == 0: print "Finished {} of {}".format(i, len(fnames))
 
 	with open(ROOT + 'out.csv','w') as f:
 		f.write('id,label\n')
@@ -78,35 +112,10 @@ def dumper(model,kind,fname=None):
 		raise IOError('Unable to open: {}'.format(fname))
 	return fname
 
-'''
-def tester(topModel,vgg=None,img_path=None):
-	if img_path is None:
-		test_gen = ImageDataGenerator()
-		test_gen = test_gen.flow_from_directory(
-			TEST_DIR,target_size=(img_width, img_height),
-			batch_size=mini_batch_sz,
-			class_mode=None)
-		i = 0
-		cl, dl = 0., 0.
-		total_samples = len(listdir(TEST_DIR + 'cats')) + len(listdir(TEST_DIR + 'dogs'))
-		while i < total_samples:
-			X = test_gen.next()
-			y = topModel.predict(X, batch_size=8)
-			if i % 3 == 0: print i
-			for pred in y[:len(X)/2]:
-				cl += logloss(0, pred[0])
-			for pred in y[len(X)/2:]:
-				dl += logloss(1, pred[0])
-			i += len(X)
-		print cl
-		print dl
-		ll = cl + dl
-		print -ll/total_samples
-		return y
-	img = cv2.imread(img_path,0 if CHANNELS == 1 else 3)
-	img = cv2.resize(img, (ROW,COL))
-	x = img.astype(np.float32)
-	x = x.reshape(1,CHANNELS,ROW,COL)
-	y = topModel.predict(x)[0]
-	print y
-'''
+def random_bright_shift(arr):
+	img = to_PIL(arr)
+	return to_theano(ImageEnhance.Brightness(img).enhance(np.random.uniform(0.5,1.5)))
+
+def random_contrast_shift(arr):
+	img = to_PIL(arr)
+	return to_theano(ImageEnhance.Contrast(img).enhance(np.random.uniform(0.5,1.5)))

@@ -16,8 +16,8 @@ from os.path import dirname, abspath
 from scipy import ndimage
 from random import randint, choice
 from sys import setrecursionlimit, argv
-
 from utils import dumper, kaggleTest, visualizer
+from utils import random_bright_shift, random_contrast_shift
 
 
 ROOT = dirname(dirname(abspath(__file__)))
@@ -105,10 +105,18 @@ def init_model(preload=None):
 
     return model
 
+def customgen(traingen):
+    while 1:
+        X,y = traingen.next()
+        for i in xrange(len(X)):
+            X[i] = random_bright_shift(X[i])
+            X[i] = random_contrast_shift(X[i])
+        yield X,y 
+
 def DataGen():
-    train_datagen = ImageDataGenerator(rotation_range=45,
-    width_shift_range=0.2, height_shift_range=0.2, channel_shift_range=10.,
-    zoom_range=0.2, horizontal_flip=True,vertical_flip=True)
+    train_datagen = ImageDataGenerator(
+    width_shift_range=0.1, height_shift_range=0.1, channel_shift_range=15.,
+    horizontal_flip=True, vertical_flip=True)
 
     validation_datagen = ImageDataGenerator()
 
@@ -123,13 +131,13 @@ def DataGen():
         batch_size=mini_batch_sz,
         class_mode='categorical')
 
-    return train_generator, validation_generator
+    return customgen(train_generator), validation_generator
 
 def runner(model, epochs):
     global validation_data
     training_gen, val_gen = DataGen()
 
-    model.compile(optimizer=SGD(1e-2, momentum=0.9, nesterov=True), loss='categorical_crossentropy')
+    model.compile(optimizer=SGD(3e-4, momentum=0.9, nesterov=True), loss='categorical_crossentropy')
     checkpoint = ModelCheckpoint('current.h5','val_loss',1,True)
     print 'Model compiled.'
     try:
