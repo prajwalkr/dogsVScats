@@ -87,22 +87,11 @@ def VGG_16():
     #CNNmodel.add(Dropout(0.5))
 
     CNNmodel = weight_loader(CNNmodel)
-    model = Sequential()
-    
-    model.add(Flatten(input_shape=CNNmodel.layers[-1].output_shape[1:]))
-    model.add(Dense(512, activation='relu', W_constraint=maxnorm(3)))
-    model.add(Dropout(0.5))
-    model.add(Dense(256, activation='relu', W_constraint=maxnorm(3)))
-    model.add(Dropout(0.5))
-    model.add(Dense(1, activation='sigmoid'))
-
-    CNNmodel.add(model)
-
     return CNNmodel
 
 def init_model(preload=None):
-    '''if preload:
-        return load_model(preload)'''
+    if preload:
+        return load_model(preload)
 
     if preload == 'custom':
         return custom()

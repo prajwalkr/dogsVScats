@@ -12,13 +12,12 @@ from os.path import dirname, abspath
 from os import listdir
 import numpy as np
 import h5py, pickle
-from os.path import dirname, abspath
 from scipy import ndimage
 from random import randint, choice
 from sys import setrecursionlimit, argv
 from utils import dumper, kaggleTest, visualizer
-from utils import random_bright_shift, random_contrast_shift
-
+from utils import *
+from vgg import VGG_16 as vgg
 
 ROOT = dirname(dirname(abspath(__file__)))
 TRAIN_DIR, VAL_DIR = ROOT + '/train', ROOT + '/validation'
@@ -29,12 +28,28 @@ num_dogs_val = len(listdir(VAL_DIR + '/dogs'))
 samples_per_epoch = num_cats_train + num_dogs_train
 nb_val_samples = num_cats_val + num_dogs_val
 
-channels, img_width, img_height = 3, 224, 224
+channels, img_width, img_height = 3, 300, 300
 mini_batch_sz = 4
+use_vgg = True
 
 def init_model(preload=None):
-    '''if preload:
-        return load_model(preload)'''
+    '''if use_vgg:
+        CNNmodel = vgg()
+        model = Sequential()
+        model.add(Flatten(input_shape=CNNmodel.layers[-1].output_shape[1:]))
+        model.add(Dense(512, activation="linear"))
+        #model.add(BatchNormalization(mode=2))
+        model.add(PReLU())
+        #model.add(Dropout(p=0.5))
+        model.add(Dense(256, activation="linear"))
+        #model.add(BatchNormalization(mode=2))
+        model.add(PReLU())
+        #model.add(Dropout(p=0.5))
+        model.add(Dense(2, activation="linear"))
+        model.add(Activation("softmax"))
+        CNNmodel.add(model)
+
+        return CNNmodel'''
 
     model = Sequential()
     model.add(ZeroPadding2D((1, 1), input_shape=(channels, img_width, img_height)))
@@ -91,14 +106,14 @@ def init_model(preload=None):
     model.add(Dense(1024, activation="linear"))
     model.add(BatchNormalization())
     model.add(PReLU())
-    #model.add(Dropout(p=0.2))
+    #model.add(Dropout(p=0.5))
     model.add(Dense(512, activation="linear"))
     model.add(BatchNormalization())
     model.add(PReLU())
-    #model.add(Dropout(p=0.2))
-    model.add(Dense(2, activation="linear"))
+    #model.add(Dropout(p=0.5))
+    model.add(Dense(1, activation="linear"))
     model.add(BatchNormalization())
-    model.add(Activation("softmax"))
+    model.add(Activation("sigmoid"))
 
     if preload:
         model.load_weights(preload)
@@ -106,17 +121,22 @@ def init_model(preload=None):
     return model
 
 def customgen(traingen):
+    #MEAN_VALUE = np.array([103.939, 116.779, 123.68])
     while 1:
         X,y = traingen.next()
         for i in xrange(len(X)):
-            X[i] = random_bright_shift(X[i])
-            X[i] = random_contrast_shift(X[i])
+            if randint(0, 3)//3:
+                X[i] = random_bright_shift(X[i])
+            if randint(0, 20)//20:
+                X[i] = blur(X[i])
+            '''X[i] = X[i][::-1]
+            for j in xrange(3):
+                X[i][j] = X[i][j] - MEAN_VALUE[j]'''
         yield X,y 
 
 def DataGen():
-    train_datagen = ImageDataGenerator(
-    width_shift_range=0.1, height_shift_range=0.1, channel_shift_range=15.,
-    horizontal_flip=True, vertical_flip=True)
+    train_datagen = ImageDataGenerator(channel_shift_range=20., 
+        horizontal_flip=True, vertical_flip=True)
 
     validation_datagen = ImageDataGenerator()
 
@@ -124,12 +144,12 @@ def DataGen():
         TRAIN_DIR,
         target_size=(img_width, img_height),
         batch_size=mini_batch_sz,
-        class_mode='categorical')
+        class_mode='binary')
 
     validation_generator = validation_datagen.flow_from_directory(
         VAL_DIR,target_size=(img_width, img_height),
         batch_size=mini_batch_sz,
-        class_mode='categorical')
+        class_mode='binary')
 
     return customgen(train_generator), validation_generator
 
@@ -137,7 +157,7 @@ def runner(model, epochs):
     global validation_data
     training_gen, val_gen = DataGen()
 
-    model.compile(optimizer=SGD(3e-4, momentum=0.9, nesterov=True), loss='categorical_crossentropy')
+    model.compile(optimizer=SGD(4e-2, momentum=0.9, nesterov=True), loss='binary_crossentropy')
     checkpoint = ModelCheckpoint('current.h5','val_loss',1,True)
     print 'Model compiled.'
     try:
@@ -152,7 +172,10 @@ def runner(model, epochs):
         return model
 
 def main(args):
-    mode, preload = args
+    if len(args) == 2: mode, preload = args
+    elif len(args) == 3: mode, preload, img_path = args
+    else: raise ValueError('Only 2 or 3 args.')
+
     if preload == 'none': preload = None
     model = init_model(preload)
     if mode == 'test':
@@ -161,7 +184,11 @@ def main(args):
         return kaggleTest(model)
     if mode == 'vis':
         return visualizer(model)
-    return runner(model, 100)
+    if mode == 'activations':
+        raise NotImplementedError('Prajwal is lazy')
+    if mode == 'train':
+        return runner(model, 100)
+    else: raise ValueError('Incorrect mode')
 
 if __name__ == '__main__':
     main(argv[1:])

@@ -1,5 +1,6 @@
 from keras.utils.visualize_util import plot
 from keras.preprocessing.image import ImageDataGenerator
+from keras import backend as K
 import numpy as np
 import h5py, pickle
 from os.path import abspath, dirname
@@ -7,15 +8,15 @@ from os import listdir
 import scipy as sp
 from datetime import datetime
 from shutil import copyfile
-from PIL import Image, ImageEnhance
+from PIL import Image, ImageEnhance, ImageFilter
 from random import randint
 
 ROOT = dirname(dirname(abspath(__file__)))
 TEST_DIR = ROOT + '/test/'
-channels, img_width, img_height = 3, 224, 224
+channels, img_width, img_height = 3, 300, 300
 mini_batch_sz = 4
 ext = '.jpg'
-lb, ub = 0.3, 0.7
+lb, ub = 0.4, 0.6
 zoom_width, zoom_height, step = 120, 120, 40
 
 def logloss(act, pred):
@@ -82,16 +83,16 @@ def kaggleTest(model):
 	ids = [x[:-4] for x in [fname for fname in listdir(TEST_DIR)]]
 	X = prep_data(fnames)
 	i = 0
-	saved = 15
+	saved = 50
 	dog_probabs = []
 	print 'Beginning prediction phase...'
 	for mini_batch in X:
 		y = dog_probab(model.predict(mini_batch))
-		'''for j, pred in enumerate(y):
+		for j, pred in enumerate(y):
 			if doubtful(pred):
 				saved -= 1
 				write_image(mini_batch[j], ids[i + j] + '.jpg')
-				if saved == 0: return'''
+				if saved == 0: return
 		dog_probabs += y
 		i += mini_batch_sz
 		if i % 100 == 0: print "Finished {} of {}".format(i, len(fnames))
@@ -114,8 +115,12 @@ def dumper(model,kind,fname=None):
 
 def random_bright_shift(arr):
 	img = to_PIL(arr)
-	return to_theano(ImageEnhance.Brightness(img).enhance(np.random.uniform(0.5,1.5)))
+	return to_theano(ImageEnhance.Brightness(img).enhance(np.random.uniform(1.,2.5)))
 
 def random_contrast_shift(arr):
 	img = to_PIL(arr)
-	return to_theano(ImageEnhance.Contrast(img).enhance(np.random.uniform(0.5,1.5)))
+	return to_theano(ImageEnhance.Contrast(img).enhance(np.random.uniform(0.5,2)))
+
+def blur(arr):
+	img = to_PIL(arr)
+	return to_theano(img.filter(ImageFilter.BLUR))

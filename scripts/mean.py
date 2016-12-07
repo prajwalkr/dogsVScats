@@ -8,11 +8,11 @@ TRAIN_DIR = ROOT + '/train/'
 channels, img_width, img_height = 3, 224, 224
 
 def main():
-	sum_img = np.zeros((channels, img_width, img_height),dtype=np.float32)
+	avg = np.zeros((img_width, img_height, channels),dtype=np.float32)
 	CAT_PATH = TRAIN_DIR + 'cats/'
 	for fname in listdir(CAT_PATH):
-		sum_img += cv2.resize(cv2.imread(CAT_PATH + fname), (img_width, img_height)).transpose((2,0,1))
+		avg += cv2.resize(cv2.imread(CAT_PATH + fname), (img_width, img_height))/25000.
 	DOG_PATH = TRAIN_DIR + 'dogs/'
 	for fname in listdir(DOG_PATH):
-		sum_img += cv2.resize(cv2.imread(DOG_PATH + fname), (img_width, img_height)).transpose((2,0,1))
-	return sum_img / 25000.
+		avg += cv2.resize(cv2.imread(DOG_PATH + fname), (img_width, img_height))/25000.
+	return avg
