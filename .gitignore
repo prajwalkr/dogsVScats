@@ -3,6 +3,7 @@
 *.pyc
 data
 models/
+failures/
 *.h5
 *.png
 *.pem
@@ -11,3 +12,4 @@ dogImages/
 *jpg
 *.tar
 *npy
+*.csv

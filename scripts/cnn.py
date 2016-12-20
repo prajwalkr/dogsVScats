@@ -6,7 +6,7 @@ from keras.layers.advanced_activations import PReLU
 from keras.constraints import maxnorm
 from keras.optimizers import RMSprop, SGD
 from keras.regularizers import l2, activity_l2
-from keras.callbacks import ModelCheckpoint
+from keras.callbacks import ModelCheckpoint, CSVLogger
 from keras.preprocessing.image import ImageDataGenerator
 from os.path import dirname, abspath
 from os import listdir
@@ -28,29 +28,10 @@ num_dogs_val = len(listdir(VAL_DIR + '/dogs'))
 samples_per_epoch = num_cats_train + num_dogs_train
 nb_val_samples = num_cats_val + num_dogs_val
 
-channels, img_width, img_height = 3, 300, 300
-mini_batch_sz = 4
-use_vgg = True
+channels, img_width, img_height = 3, 224, 224
+mini_batch_sz = 16
 
-def init_model(preload=None):
-    '''if use_vgg:
-        CNNmodel = vgg()
-        model = Sequential()
-        model.add(Flatten(input_shape=CNNmodel.layers[-1].output_shape[1:]))
-        model.add(Dense(512, activation="linear"))
-        #model.add(BatchNormalization(mode=2))
-        model.add(PReLU())
-        #model.add(Dropout(p=0.5))
-        model.add(Dense(256, activation="linear"))
-        #model.add(BatchNormalization(mode=2))
-        model.add(PReLU())
-        #model.add(Dropout(p=0.5))
-        model.add(Dense(2, activation="linear"))
-        model.add(Activation("softmax"))
-        CNNmodel.add(model)
-
-        return CNNmodel'''
-
+def other_one(preload=None):
     model = Sequential()
     model.add(ZeroPadding2D((1, 1), input_shape=(channels, img_width, img_height)))
     model.add(Convolution2D(32, 3, 3, activation = "linear"))
@@ -71,7 +52,105 @@ def init_model(preload=None):
     model.add(BatchNormalization(axis=1))
     model.add(PReLU())
     model.add(MaxPooling2D(pool_size=(3,3)))
+    # model.add(Dropout(0.5))
+
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(128, 3, 3, activation = "linear"))
+    model.add(BatchNormalization(axis=1))
+    model.add(PReLU())
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(128, 3, 3, activation = "linear"))
+    model.add(BatchNormalization(axis=1))
+    model.add(PReLU())
+    model.add(MaxPooling2D(pool_size=(2,2)))
+    # model.add(Dropout(0.5))
+
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(256, 3, 3, activation = "linear"))
+    model.add(BatchNormalization(axis=1))
+    model.add(PReLU())
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(256, 3, 3, activation = "linear"))
+    model.add(BatchNormalization(axis=1))
+    model.add(PReLU())
+    model.add(MaxPooling2D(pool_size=(2,2)))
+    # model.add(Dropout(0.5))
+
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(512, 3, 3, activation = "linear"))
+    model.add(BatchNormalization(axis=1))
+    model.add(PReLU())
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(512, 3, 3, activation = "linear"))
+    model.add(BatchNormalization(axis=1))
+    model.add(PReLU())
+    model.add(MaxPooling2D(pool_size=(2,2)))
+    # model.add(Dropout(0.5))
+
+    model.add(Flatten())
+    model.add(Dense(1024, activation="linear", W_regularizer=l2(1e-5)))
+    model.add(BatchNormalization())
+    model.add(PReLU())
+    model.add(Dropout(0.3))
+    model.add(Dense(512, activation="linear", W_regularizer=l2(1e-5)))
+    model.add(BatchNormalization())
+    model.add(PReLU())
+    model.add(Dropout(0.3))
+    model.add(Dense(2, activation="linear"))
+    model.add(BatchNormalization())
+    model.add(Activation("softmax"))
+
+    if preload:
+        model.load_weights(preload)
+    return model
+
+def init_model(preload=None, use_vgg=False):
+    if use_vgg:
+        CNNmodel = vgg()
+        model = Sequential()
+        model.add(Flatten(input_shape=CNNmodel.layers[-1].output_shape[1:]))
+        model.add(Dense(512, activation="linear"))
+        model.add(PReLU())
+        model.add(Dropout(p=0.5))
+        model.add(Dense(256, activation="linear"))
+        model.add(PReLU())
+        model.add(Dropout(p=0.5))
+        model.add(Dense(2, activation="linear"))
+        model.add(Activation("softmax"))
+        CNNmodel.add(model)
+
+        if preload:
+            CNNmodel.load_weights(preload)
+        return CNNmodel
+
+    # return load_model(preload)
+    # return other_one(preload)
+
+    model = Sequential()
+    model.add(ZeroPadding2D((1, 1), input_shape=(channels, img_width, img_height)))
+    model.add(Convolution2D(32, 3, 3, activation = "linear"))
+    model.add(BatchNormalization(axis=1))
+    model.add(PReLU())
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(32, 3, 3, activation = "linear"))
+    model.add(BatchNormalization(axis=1))
+    model.add(PReLU())
+    model.add(MaxPooling2D(pool_size=(2,2)))
     
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(64, 3, 3, activation = "linear"))
+    model.add(BatchNormalization(axis=1))
+    model.add(PReLU())
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(64, 3, 3, activation = "linear"))
+    model.add(BatchNormalization(axis=1))
+    model.add(PReLU())
+    model.add(MaxPooling2D(pool_size=(2,2)))
+    
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(128, 3, 3, activation = "linear"))
+    model.add(BatchNormalization(axis=1))
+    model.add(PReLU())
     model.add(ZeroPadding2D((1, 1)))
     model.add(Convolution2D(128, 3, 3, activation = "linear"))
     model.add(BatchNormalization(axis=1))
@@ -82,6 +161,10 @@ def init_model(preload=None):
     model.add(PReLU())
     model.add(MaxPooling2D(pool_size=(2,2)))
     
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(256, 3, 3, activation = "linear"))
+    model.add(BatchNormalization(axis=1))
+    model.add(PReLU())
     model.add(ZeroPadding2D((1, 1)))
     model.add(Convolution2D(256, 3, 3, activation = "linear"))
     model.add(BatchNormalization(axis=1))
@@ -98,6 +181,24 @@ def init_model(preload=None):
     model.add(PReLU())
     model.add(ZeroPadding2D((1, 1)))
     model.add(Convolution2D(512, 3, 3, activation = "linear"))
+    model.add(BatchNormalization(axis=1))
+    model.add(PReLU())
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(512, 3, 3, activation = "linear"))
+    model.add(BatchNormalization(axis=1))
+    model.add(PReLU())
+    model.add(MaxPooling2D(pool_size=(2,2)))
+
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(1024, 3, 3, activation = "linear"))
+    model.add(BatchNormalization(axis=1))
+    model.add(PReLU())
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(1024, 3, 3, activation = "linear"))
+    model.add(BatchNormalization(axis=1))
+    model.add(PReLU())
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(1024, 3, 3, activation = "linear"))
     model.add(BatchNormalization(axis=1))
     model.add(PReLU())
     model.add(MaxPooling2D(pool_size=(2,2)))
@@ -106,14 +207,12 @@ def init_model(preload=None):
     model.add(Dense(1024, activation="linear"))
     model.add(BatchNormalization())
     model.add(PReLU())
-    #model.add(Dropout(p=0.5))
     model.add(Dense(512, activation="linear"))
     model.add(BatchNormalization())
     model.add(PReLU())
-    #model.add(Dropout(p=0.5))
-    model.add(Dense(1, activation="linear"))
+    model.add(Dense(2, activation="linear"))
     model.add(BatchNormalization())
-    model.add(Activation("sigmoid"))
+    model.add(Activation("softmax"))
 
     if preload:
         model.load_weights(preload)
@@ -121,49 +220,72 @@ def init_model(preload=None):
     return model
 
 def customgen(traingen):
-    #MEAN_VALUE = np.array([103.939, 116.779, 123.68])
+    MEAN_VALUE = np.array([103.939, 116.779, 123.68])
     while 1:
         X,y = traingen.next()
         for i in xrange(len(X)):
-            if randint(0, 3)//3:
-                X[i] = random_bright_shift(X[i])
-            if randint(0, 20)//20:
+            # if randint(0, 7)//7:
+            #     X[i] = random_bright_shift(X[i])
+            if randint(0, 8)//8:
                 X[i] = blur(X[i])
-            '''X[i] = X[i][::-1]
+            # if randint(0, 7)//7:
+            #     X[i] = random_contrast_shift(X[i])
+            X[i] = X[i][::-1]
             for j in xrange(3):
-                X[i][j] = X[i][j] - MEAN_VALUE[j]'''
+                X[i][j] = X[i][j] - MEAN_VALUE[j]
         yield X,y 
 
-def DataGen():
-    train_datagen = ImageDataGenerator(channel_shift_range=20., 
-        horizontal_flip=True, vertical_flip=True)
+def standardized(gen):
+    # MEAN_VALUE = np.array([103.939, 116.779, 123.68])
+    mean, stddev = pickle.load(open('meanSTDDEV'))
+    while 1:
+        X,y = gen.next()
+        for i in xrange(len(X)):
+            X[i] = (X[i] - mean) / stddev
+        yield X,y
 
-    validation_datagen = ImageDataGenerator()
+def addmean(X):
+    MEAN_VALUE = [103.939, 116.779, 123.68]
+    for i in xrange(len(X)):
+            for j in xrange(3):
+                    X[i][j] += MEAN_VALUE[j]
+            X[i] = X[i][::-1]
+    return X
+
+def DataGen():
+    train_datagen = ImageDataGenerator(horizontal_flip=True, rotation_range=20., width_shift_range=0.2, 
+        height_shift_range=0.2, zoom_range=0.1)
+
+    validation_datagen = ImageDataGenerator(horizontal_flip=True)
 
     train_generator = train_datagen.flow_from_directory(
         TRAIN_DIR,
         target_size=(img_width, img_height),
         batch_size=mini_batch_sz,
-        class_mode='binary')
+        class_mode='categorical')
 
     validation_generator = validation_datagen.flow_from_directory(
         VAL_DIR,target_size=(img_width, img_height),
         batch_size=mini_batch_sz,
-        class_mode='binary')
+        class_mode='categorical')
 
-    return customgen(train_generator), validation_generator
+    return standardized(train_generator), standardized(validation_generator)
 
 def runner(model, epochs):
     global validation_data
     training_gen, val_gen = DataGen()
 
-    model.compile(optimizer=SGD(4e-2, momentum=0.9, nesterov=True), loss='binary_crossentropy')
-    checkpoint = ModelCheckpoint('current.h5','val_loss',1,True)
+    model.compile(optimizer=SGD(4e-4, momentum=0.9, nesterov=True), loss='categorical_crossentropy')
+
+    val_checkpoint = ModelCheckpoint('bestval.h5','val_loss',1,True)
+    cur_checkpoint = ModelCheckpoint('current.h5')
+    # csvlogger = CSVLogger('current.csv', append=True)
     print 'Model compiled.'
+
     try:
         model.fit_generator(training_gen,samples_per_epoch,epochs,
                         verbose=1,validation_data=val_gen,nb_val_samples=nb_val_samples,
-                        callbacks=[checkpoint])
+                        callbacks=[val_checkpoint, cur_checkpoint])
     except Exception as e:
         print e
     finally:
