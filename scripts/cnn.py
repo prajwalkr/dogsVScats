@@ -2,7 +2,7 @@ from keras.models import Sequential, load_model
 from keras.layers.core import Flatten, Dense, Dropout, Activation
 from keras.layers.convolutional import Convolution2D, MaxPooling2D, ZeroPadding2D
 from keras.layers.normalization import BatchNormalization
-from keras.layers.advanced_activations import PReLU
+from keras.layers.advanced_activations import PReLU, ELU
 from keras.constraints import maxnorm
 from keras.optimizers import RMSprop, SGD
 from keras.regularizers import l2, activity_l2
@@ -29,7 +29,7 @@ samples_per_epoch = num_cats_train + num_dogs_train
 nb_val_samples = num_cats_val + num_dogs_val
 
 channels, img_width, img_height = 3, 224, 224
-mini_batch_sz = 16
+mini_batch_sz = 8
 
 def other_one(preload=None):
     model = Sequential()
@@ -88,14 +88,14 @@ def other_one(preload=None):
     # model.add(Dropout(0.5))
 
     model.add(Flatten())
-    model.add(Dense(1024, activation="linear", W_regularizer=l2(1e-5)))
+    model.add(Dense(2048, activation="linear"))
     model.add(BatchNormalization())
     model.add(PReLU())
-    model.add(Dropout(0.3))
-    model.add(Dense(512, activation="linear", W_regularizer=l2(1e-5)))
+    # model.add(Dropout(0.3))
+    model.add(Dense(2048, activation="linear"))
     model.add(BatchNormalization())
     model.add(PReLU())
-    model.add(Dropout(0.3))
+    # model.add(Dropout(0.3))
     model.add(Dense(2, activation="linear"))
     model.add(BatchNormalization())
     model.add(Activation("softmax"))
@@ -124,92 +124,92 @@ def init_model(preload=None, use_vgg=False):
         return CNNmodel
 
     # return load_model(preload)
-    # return other_one(preload)
+    return other_one(preload)
 
     model = Sequential()
     model.add(ZeroPadding2D((1, 1), input_shape=(channels, img_width, img_height)))
     model.add(Convolution2D(32, 3, 3, activation = "linear"))
     model.add(BatchNormalization(axis=1))
-    model.add(PReLU())
+    model.add(ELU())
     model.add(ZeroPadding2D((1, 1)))
     model.add(Convolution2D(32, 3, 3, activation = "linear"))
     model.add(BatchNormalization(axis=1))
-    model.add(PReLU())
+    model.add(ELU())
     model.add(MaxPooling2D(pool_size=(2,2)))
     
     model.add(ZeroPadding2D((1, 1)))
     model.add(Convolution2D(64, 3, 3, activation = "linear"))
     model.add(BatchNormalization(axis=1))
-    model.add(PReLU())
+    model.add(ELU())
     model.add(ZeroPadding2D((1, 1)))
     model.add(Convolution2D(64, 3, 3, activation = "linear"))
     model.add(BatchNormalization(axis=1))
-    model.add(PReLU())
+    model.add(ELU())
     model.add(MaxPooling2D(pool_size=(2,2)))
     
     model.add(ZeroPadding2D((1, 1)))
     model.add(Convolution2D(128, 3, 3, activation = "linear"))
     model.add(BatchNormalization(axis=1))
-    model.add(PReLU())
+    model.add(ELU())
     model.add(ZeroPadding2D((1, 1)))
     model.add(Convolution2D(128, 3, 3, activation = "linear"))
     model.add(BatchNormalization(axis=1))
-    model.add(PReLU())
+    model.add(ELU())
     model.add(ZeroPadding2D((1, 1)))
     model.add(Convolution2D(128, 3, 3, activation = "linear"))
     model.add(BatchNormalization(axis=1))
-    model.add(PReLU())
+    model.add(ELU())
     model.add(MaxPooling2D(pool_size=(2,2)))
     
     model.add(ZeroPadding2D((1, 1)))
     model.add(Convolution2D(256, 3, 3, activation = "linear"))
     model.add(BatchNormalization(axis=1))
-    model.add(PReLU())
+    model.add(ELU())
     model.add(ZeroPadding2D((1, 1)))
     model.add(Convolution2D(256, 3, 3, activation = "linear"))
     model.add(BatchNormalization(axis=1))
-    model.add(PReLU())
+    model.add(ELU())
     model.add(ZeroPadding2D((1, 1)))
     model.add(Convolution2D(256, 3, 3, activation = "linear"))
     model.add(BatchNormalization(axis=1))
-    model.add(PReLU())
+    model.add(ELU())
     model.add(MaxPooling2D(pool_size=(2,2)))
 
     model.add(ZeroPadding2D((1, 1)))
     model.add(Convolution2D(512, 3, 3, activation = "linear"))
     model.add(BatchNormalization(axis=1))
-    model.add(PReLU())
+    model.add(ELU())
     model.add(ZeroPadding2D((1, 1)))
     model.add(Convolution2D(512, 3, 3, activation = "linear"))
     model.add(BatchNormalization(axis=1))
-    model.add(PReLU())
+    model.add(ELU())
     model.add(ZeroPadding2D((1, 1)))
     model.add(Convolution2D(512, 3, 3, activation = "linear"))
     model.add(BatchNormalization(axis=1))
-    model.add(PReLU())
+    model.add(ELU())
     model.add(MaxPooling2D(pool_size=(2,2)))
 
     model.add(ZeroPadding2D((1, 1)))
     model.add(Convolution2D(1024, 3, 3, activation = "linear"))
     model.add(BatchNormalization(axis=1))
-    model.add(PReLU())
+    model.add(ELU())
     model.add(ZeroPadding2D((1, 1)))
     model.add(Convolution2D(1024, 3, 3, activation = "linear"))
     model.add(BatchNormalization(axis=1))
-    model.add(PReLU())
+    model.add(ELU())
     model.add(ZeroPadding2D((1, 1)))
     model.add(Convolution2D(1024, 3, 3, activation = "linear"))
     model.add(BatchNormalization(axis=1))
-    model.add(PReLU())
+    model.add(ELU())
     model.add(MaxPooling2D(pool_size=(2,2)))
 
     model.add(Flatten())
-    model.add(Dense(1024, activation="linear"))
+    model.add(Dense(2048, activation="linear"))
     model.add(BatchNormalization())
-    model.add(PReLU())
-    model.add(Dense(512, activation="linear"))
+    model.add(ELU())
+    model.add(Dense(2048, activation="linear"))
     model.add(BatchNormalization())
-    model.add(PReLU())
+    model.add(ELU())
     model.add(Dense(2, activation="linear"))
     model.add(BatchNormalization())
     model.add(Activation("softmax"))
@@ -220,19 +220,19 @@ def init_model(preload=None, use_vgg=False):
     return model
 
 def customgen(traingen):
-    MEAN_VALUE = np.array([103.939, 116.779, 123.68])
+    # MEAN_VALUE = np.array([103.939, 116.779, 123.68])
     while 1:
         X,y = traingen.next()
         for i in xrange(len(X)):
-            # if randint(0, 7)//7:
-            #     X[i] = random_bright_shift(X[i])
             if randint(0, 8)//8:
+                X[i] = random_bright_shift(X[i])
+            if randint(0, 5)//5:
                 X[i] = blur(X[i])
             # if randint(0, 7)//7:
             #     X[i] = random_contrast_shift(X[i])
-            X[i] = X[i][::-1]
-            for j in xrange(3):
-                X[i][j] = X[i][j] - MEAN_VALUE[j]
+            # X[i] = X[i][::-1]
+            # for j in xrange(3):
+            #     X[i][j] = X[i][j] - MEAN_VALUE[j]
         yield X,y 
 
 def standardized(gen):
@@ -253,8 +253,8 @@ def addmean(X):
     return X
 
 def DataGen():
-    train_datagen = ImageDataGenerator(horizontal_flip=True, rotation_range=20., width_shift_range=0.2, 
-        height_shift_range=0.2, zoom_range=0.1)
+    train_datagen = ImageDataGenerator(horizontal_flip=True, channel_shift_range=5.,
+        rotation_range=10., zoom_range=0.2, fill_mode="constant", cval=0.)
 
     validation_datagen = ImageDataGenerator(horizontal_flip=True)
 
@@ -269,13 +269,13 @@ def DataGen():
         batch_size=mini_batch_sz,
         class_mode='categorical')
 
-    return standardized(train_generator), standardized(validation_generator)
+    return train_generator, validation_generator
 
 def runner(model, epochs):
     global validation_data
     training_gen, val_gen = DataGen()
 
-    model.compile(optimizer=SGD(4e-4, momentum=0.9, nesterov=True), loss='categorical_crossentropy')
+    model.compile(optimizer=SGD(1e-4), loss='categorical_crossentropy')
 
     val_checkpoint = ModelCheckpoint('bestval.h5','val_loss',1,True)
     cur_checkpoint = ModelCheckpoint('current.h5')
