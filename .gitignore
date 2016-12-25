@@ -13,3 +13,4 @@ dogImages/
 *.tar
 *npy
 *.csv
+scripts/meanSTDDEV

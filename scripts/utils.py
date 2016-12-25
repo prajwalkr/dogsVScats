@@ -52,6 +52,9 @@ def write_image(image, file_path):
 def rotate(image, degrees):
 	return image.rotate(degrees)
 
+def resize(arr, h, w):
+	return to_theano(to_PIL(arr).resize((h,w)))
+
 def getVariations(image):
 	img = Image.fromarray(np.asarray(image.transpose(1, 2, 0), dtype=np.uint8))
 	images = []
