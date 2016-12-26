@@ -8,12 +8,12 @@ import pickle
 
 ROOT = dirname(dirname(abspath(__file__)))
 TRAIN_DIR = ROOT + '/train/'
-channels, img_width, img_height = 3, 224, 224
+channels, img_width, img_height = 3, 256, 256
 num_cats_train = len(listdir(TRAIN_DIR + '/cats'))
 num_dogs_train = len(listdir(TRAIN_DIR + '/dogs'))
 num_images = num_cats_train + num_dogs_train
-num_iterations = 5
-batch_sz = 10
+num_iterations = 1
+batch_sz = 16
 
 def main():
 	dg = DataGen()[0]
