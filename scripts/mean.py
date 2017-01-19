@@ -8,7 +8,7 @@ import pickle
 
 ROOT = dirname(dirname(abspath(__file__)))
 TRAIN_DIR = ROOT + '/train/'
-channels, img_width, img_height = 3, 256, 256
+channels, img_width, img_height = 3, 400, 400
 num_cats_train = len(listdir(TRAIN_DIR + '/cats'))
 num_dogs_train = len(listdir(TRAIN_DIR + '/dogs'))
 num_images = num_cats_train + num_dogs_train
@@ -34,7 +34,7 @@ def main():
 			if cur_count % 500 == 0: print 'Finished {}/{}'.format(cur_count, num_images)
 
 	stddev = (e_x2byN - mean ** 2) ** 0.5
-	pickle.dump((mean, stddev), open('meanSTDDEV','w'))
+	pickle.dump((mean, stddev), open('meanSTDDEV400','w'))
 	return mean, stddev
 
 if __name__ == '__main__':

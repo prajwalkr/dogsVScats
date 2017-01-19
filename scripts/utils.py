@@ -2,7 +2,7 @@ from keras.utils.visualize_util import plot
 from keras.preprocessing.image import ImageDataGenerator
 from keras import backend as K
 import numpy as np
-import h5py, pickle
+import h5py, pickle, cv2
 from os.path import abspath, dirname
 from os import listdir
 import scipy as sp
@@ -49,11 +49,47 @@ def read_image(file_path):
 def write_image(image, file_path):
 	to_PIL(image).save(file_path)
 
+def show(image):
+	to_PIL(image).show()
+
 def rotate(image, degrees):
 	return image.rotate(degrees)
 
 def resize(arr, h, w):
 	return to_theano(to_PIL(arr).resize((h,w)))
+
+def crop(arr, x, y, size):
+	W,H = arr.shape[1:]
+	return to_theano(to_PIL(arr).crop((x,y,x + size, y + size)))
+
+def resizeX(arr, size):
+	X = np.ndarray(arr.shape[:2] + (size, size),dtype=np.float32)
+	for i, x in enumerate(arr): X[i] = resize(x, size, size)
+	return X
+
+def cropX(arr, size, training=True, x=None, y=None):
+	# if not training:
+	# 	w = h = 400
+	# 	x, y = randint(0, w - size), randint(0, h - size)
+	X = np.ndarray(arr.shape[:2] + (size, size),dtype=np.float32)
+	for i in xrange(len(arr)): X[i] = crop(arr[i], x, y, size)
+	return X
+
+def getXY(q, size, imsize=400):
+	h = w = imsize
+	x1, y1 = randint(0, min(imsize - size - 1, imsize/2)), randint(0, min(imsize - size - 1, imsize/2))
+	if q == 0:
+		# top left
+		return x1, y1
+	if q == 1:
+		# top right
+		return w - x1 - size, y1
+	if q == 2:
+		# bottom right
+		return w - x1 - size, h - y1 - size
+	if q == 3:
+		# bottom left
+		return x1, h - y1 - size
 
 def getVariations(image):
 	img = Image.fromarray(np.asarray(image.transpose(1, 2, 0), dtype=np.uint8))
@@ -70,12 +106,12 @@ def getVariations(image):
 	return np.asarray(images)
 
 def standardized(gen):
-    mean, stddev = pickle.load(open('meanSTDDEV'))
-    while 1:
-        X = gen.next()
-        for i in xrange(len(X)):
-            X[i] = (X[i] - mean) / stddev
-        yield X
+	mean, stddev = pickle.load(open('meanSTDDEV'))
+	while 1:
+		X = gen.next()
+		for i in xrange(len(X)):
+			X[i] = (X[i] - mean) / stddev
+		yield X
 
 def prep_data(images):
 	batches = [images[i:min(len(images), i + mini_batch_sz)] 
@@ -137,13 +173,22 @@ def dumper(model,kind,fname=None):
 		raise IOError('Unable to open: {}'.format(fname))
 	return fname
 
+# def random_bright_shift(image):
+# 	print np.asarray(image,dtype=np.uint8)
+# 	image = np.asarray(image,dtype=np.uint8)
+# 	image1 = cv2.cvtColor(image,cv2.COLOR_RGB2HSV)
+# 	random_bright = .25+np.random.uniform()
+# 	image1[:,:,2] = image1[:,:,2]*random_bright
+# 	image1 = cv2.cvtColor(image1,cv2.COLOR_HSV2RGB)
+# 	return image1
+
 def random_bright_shift(arr):
 	img = to_PIL(arr)
-	return to_theano(ImageEnhance.Brightness(img).enhance(np.random.uniform(0.37,1.63)))
+	return to_theano(ImageEnhance.Brightness(img).enhance(np.random.uniform(0.8,1.2)))
 
-def random_contrast_shift(arr):
-	img = to_PIL(arr)
-	return to_theano(ImageEnhance.Contrast(img).enhance(np.random.uniform(0.2,1.8)))
+# def random_contrast_shift(arr):
+# 	img = to_PIL(arr)
+# 	return to_theano(ImageEnhance.Contrast(img).enhance(np.random.uniform(0.8,1.2)))
 
 def blur(arr):
 	img = to_PIL(arr)

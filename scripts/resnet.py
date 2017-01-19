@@ -65,8 +65,8 @@ def _residual_block(block_function, nb_filters, repetitions, is_first_layer=Fals
 # Follows improved proposed scheme in http://arxiv.org/pdf/1603.05027v2.pdf
 def basic_block(nb_filters, init_subsample=(1, 1)):
     def f(input):
-        conv1 = _bn_relu_conv(nb_filters, 3, 3, subsample=init_subsample)(input)
-        residual = _bn_relu_conv(nb_filters, 3, 3)(conv1)
+        conv1 = _conv_bn_relu(nb_filters, 3, 3, subsample=init_subsample)(input)
+        residual = _conv_bn_relu(nb_filters, 3, 3)(conv1)
         return _shortcut(input, residual)
 
     return f
