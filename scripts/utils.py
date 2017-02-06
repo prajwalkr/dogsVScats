@@ -38,7 +38,7 @@ def visualizer(model):
 	plot(model, to_file=ROOT + '/vis.png', show_shapes=True)
 
 def dog_probab(y):
-	return [pair[1] for pair in y]
+	return [x[0] for x in y]
 
 def doubtful(pred):
 	return (pred > lb and pred < lbub) or (pred < ub and pred > ublb)
@@ -118,10 +118,11 @@ def prep_data(images):
 				for i in xrange(0, len(images), mini_batch_sz)]
 
 	for mini_batch in batches:
-		data = np.ndarray((mini_batch_sz, channels, img_height, img_width), 
+		data = np.ndarray((len(mini_batch), img_height, img_width, channels), 
 							dtype=np.float32)
 		for i, image_file in enumerate(mini_batch):
-			data[i] = read_image(image_file)
+			data[i] = np.asarray(Image.open(image_file).convert('RGB').resize((img_height, img_width)), 
+						dtype=np.float32)
 		yield data
 
 def getConfident(preds):
@@ -137,23 +138,29 @@ def kaggleTest(model):
 	fnames = [TEST_DIR + fname for fname in listdir(TEST_DIR)]
 
 	ids = [x[:-4] for x in [fname for fname in listdir(TEST_DIR)]]
-	X = standardized(prep_data(fnames))
+	X = prep_data(fnames)
 	i = 0
 	saved = 50
 	dog_probabs = []
 	print 'Beginning prediction phase...'
 	for mini_batch in X:
 		y = dog_probab(model.predict(mini_batch))
-		for j, pred in enumerate(y):
-			pass
-			# if doubtful(pred):
-			# 	zoomPreds = dog_probab(model.predict(getVariations(mini_batch[j]), 
-			# 					batch_size=mini_batch_sz))
-			# 	y[j] = min(y[j], min(zoomPreds)) if y[j] < lbub else max(y[j], max(zoomPreds))
-			#	saved -= 1
-			#	write_image(mini_batch[j], '../failures/{}.jpg'.format(ids[i + j]))
-			#	if saved == 0: return
-		dog_probabs += y
+		# for j, pred in enumerate(y):
+		# 	# if pred < 0.3:
+		# 	# 	y[j] = 0.
+		# 	# if pred > 0.7:
+		# 	# 	y[j] = 1.
+		# 	# else:
+		# 	# 	y[j] = 0.7
+		# 	pass
+		# 	# if doubtful(pred):
+		# 	# 	zoomPreds = dog_probab(model.predict(getVariations(mini_batch[j]), 
+		# 	# 					batch_size=mini_batch_sz))
+		# 	# 	y[j] = min(y[j], min(zoomPreds)) if y[j] < lbub else max(y[j], max(zoomPreds))
+		# 	#	saved -= 1
+		# 	#	write_image(mini_batch[j], '../failures/{}.jpg'.format(ids[i + j]))
+		# 	#	if saved == 0: return
+		dog_probabs.extend(y)
 		i += mini_batch_sz
 		if i % 100 == 0: print "Finished {} of {}".format(i, len(fnames))
 

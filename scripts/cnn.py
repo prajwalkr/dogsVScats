@@ -3,9 +3,9 @@ from keras.layers.core import Flatten, Dense, Dropout, Activation
 from keras.layers.convolutional import Convolution2D, MaxPooling2D, ZeroPadding2D
 from keras.layers.normalization import BatchNormalization
 from keras.layers.advanced_activations import PReLU, ELU
-from keras.layers import Input, merge
+from keras.layers import Input, merge, GlobalAveragePooling2D
 from keras.constraints import maxnorm
-from keras.optimizers import RMSprop, SGD
+from keras.optimizers import RMSprop, SGD, Adam
 from keras.regularizers import l2, activity_l2
 from keras.callbacks import ModelCheckpoint, CSVLogger, LearningRateScheduler
 from keras.preprocessing.image import ImageDataGenerator
@@ -19,8 +19,9 @@ from sys import setrecursionlimit, argv
 from utils import dumper, kaggleTest, visualizer
 from utils import *
 from vgg import VGG_16 as vgg
-from resnet import ResnetBuilder as ResNet
+from resnet import ResNet50
 from spaced_rep import spacedRunner
+from squeezenet import SqueezeNet
 
 ROOT = dirname(dirname(abspath(__file__)))
 TRAIN_DIR, VAL_DIR = ROOT + '/train', ROOT + '/validation'
@@ -31,7 +32,7 @@ num_dogs_val = len(listdir(VAL_DIR + '/dogs'))
 samples_per_epoch = num_cats_train + num_dogs_train
 nb_val_samples = num_cats_val + num_dogs_val
 
-channels, img_width, img_height = 3, 224, 224
+channels, img_width, img_height = 3, 300, 300
 mini_batch_sz = 16
 
 use_multicrop = False
@@ -192,11 +193,27 @@ def multicrop_model(preload=None):
 
 	return model
 
-def init_model(preload=None, declare=True, use_vgg=False):
-	if use_multiscale and use_vgg: raise ValueError('Incorrect params')
+def init_model(preload=None, declare=False, use_vgg=False, use_resnet=True):
+	if use_multiscale and use_vgg and use_squeezenet: raise ValueError('Incorrect params')
 	if not declare and preload: return load_model(preload)
 	if use_multiscale: return multiscale_model(preload)
 	if use_multicrop: return multicrop_model(preload)
+	
+	if use_resnet: 
+		if not preload:
+			weights_path = ROOT + '/resnet50_tf_notop.h5'
+			body = ResNet50(input_shape=(img_width, img_width, channels), weights_path=weights_path)
+		for layer in body.layers: layer.trainable = False
+
+		head = body.output
+		batchnormed = BatchNormalization(axis=3)(head)
+		avgpooled = GlobalAveragePooling2D()(batchnormed)
+		dropout = Dropout(0.5) (avgpooled)
+		output = Dense(1, activation="sigmoid")(dropout)
+		model = Model(body.input, output)
+
+		if preload: model.load_weights(preload)
+		return model
 
 	if use_vgg:
 		model = vgg()
@@ -214,25 +231,13 @@ def init_model(preload=None, declare=True, use_vgg=False):
 
 	model = Sequential()
 	model.add(ZeroPadding2D((1, 1), input_shape=(channels, img_width, img_height)))
-	model.add(Convolution2D(8, 3, 3, activation = "linear"))
+	model.add(Convolution2D(16, 3, 3, activation = "linear"))
 	model.add(ELU())
 	model.add(ZeroPadding2D((1, 1)))
-	model.add(Convolution2D(8, 3, 3, activation = "linear"))
+	model.add(Convolution2D(16, 3, 3, activation = "linear"))
 	model.add(ELU())
-	# model.add(Dropout(0.3))
 	model.add(MaxPooling2D(pool_size=(5,5)))
-
-	model.add(ZeroPadding2D((1, 1)))
-	model.add(Convolution2D(16, 3, 3, activation = "linear"))
-	model.add(ELU())
-	model.add(ZeroPadding2D((1, 1)))
-	model.add(Convolution2D(16, 3, 3, activation = "linear"))
-	model.add(ELU())
-	model.add(ZeroPadding2D((1, 1)))
-	model.add(Convolution2D(16, 3, 3, activation = "linear"))
-	model.add(ELU())
-	# model.add(Dropout(0.3))
-	model.add(MaxPooling2D(pool_size=(3,3)))
+	model.add(Dropout(0.5))
 
 	model.add(ZeroPadding2D((1, 1)))
 	model.add(Convolution2D(32, 3, 3, activation = "linear"))
@@ -243,8 +248,20 @@ def init_model(preload=None, declare=True, use_vgg=False):
 	model.add(ZeroPadding2D((1, 1)))
 	model.add(Convolution2D(32, 3, 3, activation = "linear"))
 	model.add(ELU())
-	# model.add(Dropout(0.3))
 	model.add(MaxPooling2D(pool_size=(3,3)))
+	model.add(Dropout(0.5))
+
+	model.add(ZeroPadding2D((1, 1)))
+	model.add(Convolution2D(64, 3, 3, activation = "linear"))
+	model.add(ELU())
+	model.add(ZeroPadding2D((1, 1)))
+	model.add(Convolution2D(64, 3, 3, activation = "linear"))
+	model.add(ELU())
+	model.add(ZeroPadding2D((1, 1)))
+	model.add(Convolution2D(64, 3, 3, activation = "linear"))
+	model.add(ELU())
+	model.add(MaxPooling2D(pool_size=(3,3)))
+	model.add(Dropout(0.5))
 
 	model.add(Flatten())
 	model.add(Dense(64, activation='linear'))
@@ -255,7 +272,7 @@ def init_model(preload=None, declare=True, use_vgg=False):
 	if preload: model.load_weights(preload)
 	return model
 
-def standardized(gen, training=False, vgg=False):
+def standardized(gen, training=False, vgg=True):
 	MEAN_VALUE = np.array([103.939, 116.779, 123.68])
 	mean, stddev = pickle.load(open('meanSTDDEV'))
 	while 1:
@@ -272,11 +289,10 @@ def standardized(gen, training=False, vgg=False):
 				# 	X[i] = random_contrast_shift(X[i])
 
 			if vgg:
-				X[i] = X[i][::-1]
 				for j in xrange(3): X[i][j] -= MEAN_VALUE[j]
+				X[i] = X[i][::-1]
 			else:
-				pass
-				# X[i] = (X[i] - mean) / stddev
+				X[i] = (X[i] - mean) / stddev
 		yield X,y
 
 def submean(X, ms):
@@ -332,9 +348,15 @@ def ms_valgen():
 
 		yield ([X1, X2, X3], y)
 
+def resnet_sub_mean(gen):
+	while 1:
+		X,y = gen.next()
+		for i in xrange(len(X)): X[i] = (X[i] - np.array([103.939, 116.779, 123.68]))[...,::-1]
+		yield X,y
+
 def DataGen():
-	train_datagen = ImageDataGenerator(rotation_range=30., width_shift_range=0.1, 
-		height_shift_range=0.1, channel_shift_range=1., horizontal_flip=True, fill_mode='reflect')
+	train_datagen = ImageDataGenerator(rotation_range=5., width_shift_range=0.05,
+		height_shift_range=0.05, channel_shift_range=10., horizontal_flip=True, fill_mode='constant')
 
 	validation_datagen = ImageDataGenerator(horizontal_flip=True)
 
@@ -349,25 +371,25 @@ def DataGen():
 		batch_size=mini_batch_sz,
 		class_mode='binary')
 
-	return standardized(train_generator, training=True), standardized(validation_generator)
+	return train_generator, validation_generator
 
 def runner(model, epochs):
-	initial_LR = 1e-3
+	initial_LR = 1e-4
 	if not use_multiscale and not use_multicrop: training_gen, val_gen = DataGen()
 	else: training_gen, val_gen = ms_traingen(), ms_valgen()
 
-	model.compile(optimizer=SGD(initial_LR, momentum=0.9, nesterov=True), loss='binary_crossentropy')
+	model.compile(optimizer=Adam(initial_LR), loss='binary_crossentropy')
 
 	val_checkpoint = ModelCheckpoint('bestval.h5','val_loss',1, True)
 	cur_checkpoint = ModelCheckpoint('current.h5')
-	# def lrForEpoch(i): return initial_LR if i < 2 else initial_LR / (i / 2)
-	# lrScheduler = LearningRateScheduler(lrForEpoch)
+	def lrForEpoch(i): return initial_LR if i < 2 else initial_LR / (i / 2)
+	lrScheduler = LearningRateScheduler(lrForEpoch)
 	print 'Model compiled.'
 
 	try:
 		model.fit_generator(training_gen,samples_per_epoch,epochs,
 						verbose=1,validation_data=val_gen,nb_val_samples=nb_val_samples,
-						callbacks=[val_checkpoint, cur_checkpoint])
+						callbacks=[val_checkpoint, cur_checkpoint, lrScheduler])
 	except Exception as e:
 		print e
 	finally:
@@ -378,26 +400,37 @@ def runner(model, epochs):
 def save_failed(model):
 	_, v = DataGen()
 	saved = 50
-	MEAN_VALUE = np.array([103.939, 116.779, 123.68])
+	# MEAN_VALUE = np.array([103.939, 116.779, 123.68])
 	mean, stddev = pickle.load(open('meanSTDDEV'))
 	done = 0
-	cat_pred, dog_pred = [],[]
+	# cat_pred, dog_pred = [],[]
+	yt, yp = [], []
 	while 1:
 		X, y_true = v.next()
 		y_pred = model.predict(X)
 		for i, pred in enumerate(y_pred):
-			if np.abs(y_pred[0] - y_true[0]) > 0.6:
-				for j in xrange(3): X[i][j] += MEAN_VALUE[j]
-				write_image(X[i][::-1], '../failures/{}.jpg'.format(randint(0,1000000000)))
-				saved -= 1
-			if y_true[i] == 0.: cat_pred.append(pred)
-			else: dog_pred.append(pred)
-			done += len(X)
-			if done % 100 == 0: print done
-			if done >= 5716: break
+			# if np.abs(y_pred[0] - y_true[0]) > 0.6:
+			# 	X[i] = (X[i] * stddev) + mean
+			# 	write_image(X[i], '../failures/{}.jpg'.format(randint(0,1000000000)))
+			# 	saved -= 1
+			# if y_true[i] < 0.5: cat_pred.append(pred[0])
+			# else: dog_pred.append(pred[0])
+			if pred[0] < 0.3:
+				yp.append(0.)
+			if pred[0] > 0.7:
+				yp.append(1.)
+			else:
+				yp.append(0.7)
+			yt.append(y_true[i])
+
+		if done % 100 == 0: print done
+		done += len(X)
+		if done >= 5716: break
 		if saved <= 0:
 			break
+	print logloss(y_true, y_pred) / 5716
 	print logloss([0.] * len(cat_pred), cat_pred), logloss([1.] * len(dog_pred), dog_pred)
+	# print float(sum(cat_pred) + sum(dog_pred)) / 5716.
 
 def main(args):
 	if len(args) == 2: mode, preload = args

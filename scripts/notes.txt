@@ -1,0 +1,2 @@
+bestval1,2,3 == resnet50 + GlobalAvgPooling  ---- imsize = 224
+bestval4 == resnet50 + GlobalAvgPooling + Dropout ---- imsize = 300
