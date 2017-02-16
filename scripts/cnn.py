@@ -7,7 +7,7 @@ from keras.layers import Input, merge, GlobalAveragePooling2D
 from keras.constraints import maxnorm
 from keras.optimizers import RMSprop, SGD, Adam
 from keras.regularizers import l2, activity_l2
-from keras.callbacks import ModelCheckpoint, CSVLogger, LearningRateScheduler
+from keras.callbacks import ModelCheckpoint, CSVLogger, LearningRateScheduler, ReduceLROnPlateau
 from keras.preprocessing.image import ImageDataGenerator
 from os.path import dirname, abspath
 from os import listdir
@@ -16,10 +16,10 @@ import h5py, pickle
 from scipy import ndimage
 from random import randint, choice, shuffle, sample
 from sys import setrecursionlimit, argv
-from utils import dumper, kaggleTest, visualizer
 from utils import *
 from vgg import VGG_16 as vgg
 from resnet import ResNet50
+from inceptionv4 import inception_v4
 from spaced_rep import spacedRunner
 from squeezenet import SqueezeNet
 
@@ -32,8 +32,9 @@ num_dogs_val = len(listdir(VAL_DIR + '/dogs'))
 samples_per_epoch = num_cats_train + num_dogs_train
 nb_val_samples = num_cats_val + num_dogs_val
 
-channels, img_width, img_height = 3, 300, 300
-mini_batch_sz = 16
+channels, img_width, img_height = 3, 224, 224
+MAX_SIDE = 350
+mini_batch_sz = 48
 
 use_multicrop = False
 use_multiscale = False
@@ -193,106 +194,106 @@ def multicrop_model(preload=None):
 
 	return model
 
-def init_model(preload=None, declare=False, use_vgg=False, use_resnet=True):
+def init_model(preload=None, declare=False, use_inception=False, use_resnet=True):
+	print 'Compiling model...'
 	if use_multiscale and use_vgg and use_squeezenet: raise ValueError('Incorrect params')
 	if not declare and preload: return load_model(preload)
 	if use_multiscale: return multiscale_model(preload)
 	if use_multicrop: return multicrop_model(preload)
-	
+
 	if use_resnet: 
 		if not preload:
 			weights_path = ROOT + '/resnet50_tf_notop.h5'
 			body = ResNet50(input_shape=(img_width, img_width, channels), weights_path=weights_path)
-		for layer in body.layers: layer.trainable = False
+		for layer in body.layers:
+			layer.trainable = False
 
 		head = body.output
 		batchnormed = BatchNormalization(axis=3)(head)
 		avgpooled = GlobalAveragePooling2D()(batchnormed)
-		dropout = Dropout(0.5) (avgpooled)
+		dropout = Dropout(0.2) (avgpooled)
+		dense = Dense(1024) (dropout)
+		batchnormed = BatchNormalization() (dense)
+		relu = Activation('relu') (batchnormed)
+		dropout = Dropout(0.3) (relu)
 		output = Dense(1, activation="sigmoid")(dropout)
 		model = Model(body.input, output)
 
 		if preload: model.load_weights(preload)
 		return model
 
-	if use_vgg:
-		model = vgg()
-		model.add(Dropout(0.5))
+	if use_inception:
+		if preload: return load_model(preload)
+		return inception_v4()
+	else:
+		model = Sequential()
+		model.add(ZeroPadding2D((1, 1), input_shape=(img_width, img_height, channels)))
+		model.add(Convolution2D(16, 3, 3, activation = "linear"))
+		model.add(ELU())
+		model.add(ZeroPadding2D((1, 1)))
+		model.add(Convolution2D(16, 3, 3, activation = "linear"))
+		model.add(ELU())
+		model.add(MaxPooling2D(pool_size=(5,5)))
+
+		model.add(ZeroPadding2D((1, 1)))
+		model.add(Convolution2D(32, 3, 3, activation = "linear"))
+		model.add(ELU())
+		model.add(ZeroPadding2D((1, 1)))
+		model.add(Convolution2D(32, 3, 3, activation = "linear"))
+		model.add(ELU())
+		model.add(ZeroPadding2D((1, 1)))
+		model.add(Convolution2D(32, 3, 3, activation = "linear"))
+		model.add(ELU())
+		model.add(MaxPooling2D(pool_size=(3,3)))
+
+		model.add(ZeroPadding2D((1, 1)))
+		model.add(Convolution2D(64, 3, 3, activation = "linear"))
+		model.add(ELU())
+		model.add(ZeroPadding2D((1, 1)))
+		model.add(Convolution2D(64, 3, 3, activation = "linear"))
+		model.add(ELU())
+		model.add(ZeroPadding2D((1, 1)))
+		model.add(Convolution2D(64, 3, 3, activation = "linear"))
+		model.add(ELU())
+		model.add(MaxPooling2D(pool_size=(3,3)))
+
 		model.add(Flatten())
-		model.add(Dense(64, activation = 'linear'))
+		model.add(Dense(64, activation='linear'))
 		model.add(ELU())
 		model.add(Dropout(0.5))
 		model.add(Dense(1, activation='sigmoid'))
 
-		if preload:
-			model.load_weights(preload)
-
-		return model
-
-	model = Sequential()
-	model.add(ZeroPadding2D((1, 1), input_shape=(channels, img_width, img_height)))
-	model.add(Convolution2D(16, 3, 3, activation = "linear"))
-	model.add(ELU())
-	model.add(ZeroPadding2D((1, 1)))
-	model.add(Convolution2D(16, 3, 3, activation = "linear"))
-	model.add(ELU())
-	model.add(MaxPooling2D(pool_size=(5,5)))
-	model.add(Dropout(0.5))
-
-	model.add(ZeroPadding2D((1, 1)))
-	model.add(Convolution2D(32, 3, 3, activation = "linear"))
-	model.add(ELU())
-	model.add(ZeroPadding2D((1, 1)))
-	model.add(Convolution2D(32, 3, 3, activation = "linear"))
-	model.add(ELU())
-	model.add(ZeroPadding2D((1, 1)))
-	model.add(Convolution2D(32, 3, 3, activation = "linear"))
-	model.add(ELU())
-	model.add(MaxPooling2D(pool_size=(3,3)))
-	model.add(Dropout(0.5))
-
-	model.add(ZeroPadding2D((1, 1)))
-	model.add(Convolution2D(64, 3, 3, activation = "linear"))
-	model.add(ELU())
-	model.add(ZeroPadding2D((1, 1)))
-	model.add(Convolution2D(64, 3, 3, activation = "linear"))
-	model.add(ELU())
-	model.add(ZeroPadding2D((1, 1)))
-	model.add(Convolution2D(64, 3, 3, activation = "linear"))
-	model.add(ELU())
-	model.add(MaxPooling2D(pool_size=(3,3)))
-	model.add(Dropout(0.5))
-
-	model.add(Flatten())
-	model.add(Dense(64, activation='linear'))
-	model.add(ELU())
-	model.add(Dropout(0.5))
-	model.add(Dense(1, activation='sigmoid'))
-
-	if preload: model.load_weights(preload)
+		if preload: model.load_weights(preload)
 	return model
 
-def standardized(gen, training=False, vgg=True):
-	MEAN_VALUE = np.array([103.939, 116.779, 123.68])
-	mean, stddev = pickle.load(open('meanSTDDEV'))
+def standardized(gen, training=False, inception=False):
+	# MEAN_VALUE = np.array([103.939, 116.779, 123.68])
+	# mean, stddev = pickle.load(open('meanSTDDEV240'))
+	# mean = mean.transpose(1,2,0)
+	# stddev = stddev.transpose(1,2,0)
 	while 1:
 		X,y = gen.next()
+		# x = np.ndarray((len(X), img_width, img_height, channels), dtype=np.float32)
 		for i in xrange(len(X)):
-
+			# tlx, tly = randint(0, MAX_SIDE - img_width - 1), randint(0, MAX_SIDE - img_height - 1)
+			# x[i] = X[i][tlx + img_width, tly + img_height, :]
 			if training:
-				pass
-				# if randint(0, 4)//4:
-				# 	X[i] = blur(X[i])
-				# if randint(0, 4)//4:
-				# 	X[i] = random_bright_shift(X[i])
-				# if randint(0, 4)//4:
-				# 	X[i] = random_contrast_shift(X[i])
+				if randint(0, 4)//4:
+					X[i] = blur(X[i], tf=True)
+				if randint(0, 4)//4:
+					X[i] = random_bright_shift(X[i], tf=True)
+				if randint(0, 4)//4:
+					X[i] = random_contrast_shift(X[i], tf=True)
 
-			if vgg:
-				for j in xrange(3): X[i][j] -= MEAN_VALUE[j]
-				X[i] = X[i][::-1]
-			else:
-				X[i] = (X[i] - mean) / stddev
+			if inception:
+				X[i] = np.divide(X[i], 255.0)
+				X[i] = np.subtract(X[i], 1.0)
+				X[i] = np.multiply(X[i], 2.0)
+			# if vgg:
+			# 	for j in xrange(3): X[i][j] -= MEAN_VALUE[j]
+			# 	X[i] = X[i][::-1]
+			# else:
+			# 	X[i] = (X[i] - mean) / stddev
 		yield X,y
 
 def submean(X, ms):
@@ -348,42 +349,37 @@ def ms_valgen():
 
 		yield ([X1, X2, X3], y)
 
-def resnet_sub_mean(gen):
-	while 1:
-		X,y = gen.next()
-		for i in xrange(len(X)): X[i] = (X[i] - np.array([103.939, 116.779, 123.68]))[...,::-1]
-		yield X,y
-
 def DataGen():
-	train_datagen = ImageDataGenerator(rotation_range=5., width_shift_range=0.05,
-		height_shift_range=0.05, channel_shift_range=10., horizontal_flip=True, fill_mode='constant')
+	train_datagen = ImageDataGenerator(rotation_range=10., width_shift_range=0.01,
+		channel_shift_range=10., horizontal_flip=True, shear_range=0.1,
+		height_shift_range=0.01, fill_mode='constant')
 
 	validation_datagen = ImageDataGenerator(horizontal_flip=True)
 
 	train_generator = train_datagen.flow_from_directory(
 		TRAIN_DIR,
-		target_size=(img_width, img_height),
+		target_size=(img_width, img_width),
 		batch_size=mini_batch_sz,
 		class_mode='binary')
 
 	validation_generator = validation_datagen.flow_from_directory(
 		VAL_DIR,target_size=(img_width, img_height),
 		batch_size=mini_batch_sz,
-		class_mode='binary')
+		class_mode='binary', shuffle=False)
 
-	return train_generator, validation_generator
+	return standardized(train_generator, True, False), standardized(validation_generator, inception=False)
 
 def runner(model, epochs):
-	initial_LR = 1e-4
+	initial_LR = 0.2
 	if not use_multiscale and not use_multicrop: training_gen, val_gen = DataGen()
 	else: training_gen, val_gen = ms_traingen(), ms_valgen()
 
-	model.compile(optimizer=Adam(initial_LR), loss='binary_crossentropy')
+	model.compile(optimizer=SGD(initial_LR, momentum=0.9, nesterov=True), loss='binary_crossentropy')
 
 	val_checkpoint = ModelCheckpoint('bestval.h5','val_loss',1, True)
 	cur_checkpoint = ModelCheckpoint('current.h5')
-	def lrForEpoch(i): return initial_LR if i < 2 else initial_LR / (i / 2)
-	lrScheduler = LearningRateScheduler(lrForEpoch)
+	# def lrForEpoch(i): return initial_LR
+	lrScheduler = ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=2, cooldown=1, verbose=1)
 	print 'Model compiled.'
 
 	try:
@@ -398,56 +394,78 @@ def runner(model, epochs):
 		return model
 
 def save_failed(model):
-	_, v = DataGen()
-	saved = 50
+	# _, v = DataGen()
+	fnames = listdir(TRAIN_DIR + '/dogs/')
+	paths = [TRAIN_DIR + '/dogs/' + fname for fname in listdir(TRAIN_DIR + '/dogs/')]
+	gen = prep_data(paths, model.input_shape[1], model.input_shape[1], inception=True)
+	saved = 1000
 	# MEAN_VALUE = np.array([103.939, 116.779, 123.68])
-	mean, stddev = pickle.load(open('meanSTDDEV'))
+	# mean, stddev = pickle.load(open('meanSTDDEV'))
 	done = 0
 	# cat_pred, dog_pred = [],[]
-	yt, yp = [], []
+	# yt, yp = [], []
 	while 1:
-		X, y_true = v.next()
+		# X, y_true = v.next()
+		X = gen.next()
+		y_true = [1] * len(X)
 		y_pred = model.predict(X)
 		for i, pred in enumerate(y_pred):
-			# if np.abs(y_pred[0] - y_true[0]) > 0.6:
-			# 	X[i] = (X[i] * stddev) + mean
-			# 	write_image(X[i], '../failures/{}.jpg'.format(randint(0,1000000000)))
-			# 	saved -= 1
+			if np.abs(pred[0] - y_true[i]) > 0.8:
+				# if pred[0] > 0.3 and pred[0] < 0.7:
+				# X[i] = (X[i] * stddev) + mean ((X[i] / 2.) + 1.) * 255
+				write_image(((X[i] / 2.) + 1.) * 255, '../failures/{}'.format(fnames[done + i]), tf=True)
+				print '{} : {}'.format(fnames[done + i], pred[0])
+				saved -= 1
 			# if y_true[i] < 0.5: cat_pred.append(pred[0])
 			# else: dog_pred.append(pred[0])
-			if pred[0] < 0.3:
-				yp.append(0.)
-			if pred[0] > 0.7:
-				yp.append(1.)
-			else:
-				yp.append(0.7)
-			yt.append(y_true[i])
+			# if pred[0] < 0.3:
+			# 	yp.append(0.)
+			# if pred[0] > 0.7:
+			# 	yp.append(1.)
+			# else:
+			# 	yp.append(0.7)
+			# yt.append(y_true[i])
 
 		if done % 100 == 0: print done
 		done += len(X)
-		if done >= 5716: break
-		if saved <= 0:
-			break
-	print logloss(y_true, y_pred) / 5716
-	print logloss([0.] * len(cat_pred), cat_pred), logloss([1.] * len(dog_pred), dog_pred)
+		if done >= 57160 or saved <= 0: break
+	# print logloss(y_true, y_pred) / 5716
+	# print logloss([0.] * len(cat_pred), cat_pred), logloss([1.] * len(dog_pred), dog_pred)
 	# print float(sum(cat_pred) + sum(dog_pred)) / 5716.
 
 def main(args):
 	if len(args) == 2: mode, preload = args
-	elif len(args) == 3: mode, preload, img_path = args
-	else: raise ValueError('Only 2 or 3 args.')
+	else: mode, preload = 'ensemble', args[1:]
 
 	if preload == 'none': preload = None
-	model = init_model(preload)
-	if mode == 'test':
-		return tester(model)
+	if mode == 'ensemble':
+		return ensemble()
 	if mode == 'kaggle':
+		model = init_model(preload, declare=False)
 		return kaggleTest(model)
 	if mode == 'vis':
+		model = init_model(preload)
 		return visualizer(model)
 	if mode == 'failed':
+		model = init_model(preload, declare=False)
 		return save_failed(model)
+	if mode == 'clip':
+		with open(preload) as f:
+			f.readline()
+			labels, ids = ['label'], ['id']
+			for line in f:
+				id, label = line.strip().split(',')
+				label = float(label)
+				label = max(0.01, label)
+				label = min(0.99, label)
+				labels.append(str(label))
+				ids.append(id)
+			with open('outclip.csv','w') as g:
+				for id, label in zip(ids, labels):
+					g.write('{},{}\n'.format(id, label))
+		return
 	if mode == 'train':
+		model = init_model(preload)
 		return runner(model, 100)
 	else: raise ValueError('Incorrect mode')
 
