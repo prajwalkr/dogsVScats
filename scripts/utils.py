@@ -16,7 +16,7 @@ ROOT = dirname(dirname(abspath(__file__)))
 TEST_DIR = ROOT + '/test/'
 VAL_DIR = ROOT + '/validation/'
 channels, img_width, img_height = 3, 300, 300
-mini_batch_sz = 32
+mini_batch_sz = 16
 ext = '.jpg'
 lb, lbub, ublb, ub = 0.1, 0.4, 0.6, 0.9
 zoom_width, zoom_height, step = 120, 120, 40
@@ -219,13 +219,13 @@ def dumper(model,kind,fname=None):
 
 def random_bright_shift(arr, tf):
 	img = to_PIL(arr, tf)
-	if tf: return ImageEnhance.Brightness(img).enhance(np.random.uniform(0.7, 1.3))
-	return to_theano(ImageEnhance.Brightness(img).enhance(np.random.uniform(0.7, 1.3)))
+	if tf: return ImageEnhance.Brightness(img).enhance(np.random.uniform(0.8, 1.2))
+	return to_theano(ImageEnhance.Brightness(img).enhance(np.random.uniform(0.8, 1.2)))
 
 def random_contrast_shift(arr, tf):
 	img = to_PIL(arr, tf)
-	if tf: return ImageEnhance.Contrast(img).enhance(np.random.uniform(0.7, 1.3))
-	return to_theano(ImageEnhance.Contrast(img).enhance(np.random.uniform(0.7, 1.3)))
+	if tf: return ImageEnhance.Contrast(img).enhance(np.random.uniform(0.8, 1.2))
+	return to_theano(ImageEnhance.Contrast(img).enhance(np.random.uniform(0.8, 1.2)))
 
 def blur(arr, tf):
 	img = to_PIL(arr, tf)

@@ -32,9 +32,9 @@ num_dogs_val = len(listdir(VAL_DIR + '/dogs'))
 samples_per_epoch = num_cats_train + num_dogs_train
 nb_val_samples = num_cats_val + num_dogs_val
 
-channels, img_width, img_height = 3, 224, 224
+channels, img_width, img_height = 3, 275, 275
 MAX_SIDE = 350
-mini_batch_sz = 48
+mini_batch_sz = 24
 
 use_multicrop = False
 use_multiscale = False
@@ -196,7 +196,7 @@ def multicrop_model(preload=None):
 
 def init_model(preload=None, declare=False, use_inception=False, use_resnet=True):
 	print 'Compiling model...'
-	if use_multiscale and use_vgg and use_squeezenet: raise ValueError('Incorrect params')
+	if use_multiscale and use_inception and use_resnet: raise ValueError('Incorrect params')
 	if not declare and preload: return load_model(preload)
 	if use_multiscale: return multiscale_model(preload)
 	if use_multicrop: return multicrop_model(preload)
@@ -211,11 +211,11 @@ def init_model(preload=None, declare=False, use_inception=False, use_resnet=True
 		head = body.output
 		batchnormed = BatchNormalization(axis=3)(head)
 		avgpooled = GlobalAveragePooling2D()(batchnormed)
-		dropout = Dropout(0.2) (avgpooled)
-		dense = Dense(1024) (dropout)
+		# dropout = Dropout(0.3) (avgpooled)
+		dense = Dense(128) (avgpooled)
 		batchnormed = BatchNormalization() (dense)
-		relu = Activation('relu') (batchnormed)
-		dropout = Dropout(0.3) (relu)
+		relu = PReLU() (batchnormed)
+		dropout = Dropout(0.2) (relu)
 		output = Dense(1, activation="sigmoid")(dropout)
 		model = Model(body.input, output)
 
@@ -278,11 +278,11 @@ def standardized(gen, training=False, inception=False):
 			# tlx, tly = randint(0, MAX_SIDE - img_width - 1), randint(0, MAX_SIDE - img_height - 1)
 			# x[i] = X[i][tlx + img_width, tly + img_height, :]
 			if training:
-				if randint(0, 4)//4:
+				if randint(0, 4) // 4:
 					X[i] = blur(X[i], tf=True)
-				if randint(0, 4)//4:
+				if randint(0, 4) // 4:
 					X[i] = random_bright_shift(X[i], tf=True)
-				if randint(0, 4)//4:
+				if randint(0, 4) // 4:
 					X[i] = random_contrast_shift(X[i], tf=True)
 
 			if inception:
@@ -350,9 +350,9 @@ def ms_valgen():
 		yield ([X1, X2, X3], y)
 
 def DataGen():
-	train_datagen = ImageDataGenerator(rotation_range=10., width_shift_range=0.01,
-		channel_shift_range=10., horizontal_flip=True, shear_range=0.1,
-		height_shift_range=0.01, fill_mode='constant')
+	train_datagen = ImageDataGenerator(zoom_range=0.25, rotation_range=15.,
+		 channel_shift_range=25., width_shift_range=0.02, height_shift_range=0.02, 
+		 horizontal_flip=True, fill_mode='constant')
 
 	validation_datagen = ImageDataGenerator(horizontal_flip=True)
 
@@ -367,10 +367,10 @@ def DataGen():
 		batch_size=mini_batch_sz,
 		class_mode='binary', shuffle=False)
 
-	return standardized(train_generator, True, False), standardized(validation_generator, inception=False)
+	return standardized(train_generator, training=True, inception=False), standardized(validation_generator, inception=False)
 
 def runner(model, epochs):
-	initial_LR = 0.2
+	initial_LR = 0.001
 	if not use_multiscale and not use_multicrop: training_gen, val_gen = DataGen()
 	else: training_gen, val_gen = ms_traingen(), ms_valgen()
 
@@ -379,7 +379,7 @@ def runner(model, epochs):
 	val_checkpoint = ModelCheckpoint('bestval.h5','val_loss',1, True)
 	cur_checkpoint = ModelCheckpoint('current.h5')
 	# def lrForEpoch(i): return initial_LR
-	lrScheduler = ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=2, cooldown=1, verbose=1)
+	lrScheduler = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=2, cooldown=1, verbose=1)
 	print 'Model compiled.'
 
 	try:
@@ -394,10 +394,11 @@ def runner(model, epochs):
 		return model
 
 def save_failed(model):
-	# _, v = DataGen()
-	fnames = listdir(TRAIN_DIR + '/dogs/')
-	paths = [TRAIN_DIR + '/dogs/' + fname for fname in listdir(TRAIN_DIR + '/dogs/')]
-	gen = prep_data(paths, model.input_shape[1], model.input_shape[1], inception=True)
+	_, v = DataGen()
+	# TEST_DIR = '../test/'
+	fnames = listdir(TEST_DIR)
+	# paths = [TEST_DIR + fname for fname in listdir(TEST_DIR)]
+	# gen = prep_data(paths, model.input_shape[1], model.input_shape[1], inception=False)
 	saved = 1000
 	# MEAN_VALUE = np.array([103.939, 116.779, 123.68])
 	# mean, stddev = pickle.load(open('meanSTDDEV'))
@@ -405,15 +406,15 @@ def save_failed(model):
 	# cat_pred, dog_pred = [],[]
 	# yt, yp = [], []
 	while 1:
-		# X, y_true = v.next()
-		X = gen.next()
-		y_true = [1] * len(X)
+		X, y_true = v.next()
+		# X = gen.next()
+		# y_true = [0] * len(X)
 		y_pred = model.predict(X)
 		for i, pred in enumerate(y_pred):
-			if np.abs(pred[0] - y_true[i]) > 0.8:
+			if np.abs(pred[0] - y_true[i]) > 0.8: #pred[0] > 0.3 and pred[0] < 0.7:
 				# if pred[0] > 0.3 and pred[0] < 0.7:
 				# X[i] = (X[i] * stddev) + mean ((X[i] / 2.) + 1.) * 255
-				write_image(((X[i] / 2.) + 1.) * 255, '../failures/{}'.format(fnames[done + i]), tf=True)
+				write_image(X[i], '../failures/{}'.format(fnames[done + i]), tf=True)
 				print '{} : {}'.format(fnames[done + i], pred[0])
 				saved -= 1
 			# if y_true[i] < 0.5: cat_pred.append(pred[0])
@@ -456,8 +457,8 @@ def main(args):
 			for line in f:
 				id, label = line.strip().split(',')
 				label = float(label)
-				label = max(0.01, label)
-				label = min(0.99, label)
+				label = max(0.005, label)
+				label = min(0.995, label)
 				labels.append(str(label))
 				ids.append(id)
 			with open('outclip.csv','w') as g:

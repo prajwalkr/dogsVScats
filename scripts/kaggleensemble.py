@@ -25,9 +25,6 @@ def init_ensemble(paths):
 	merged = merge(outs, mode='ave')
 	return Model(ensemble.input, merged)
 
-def doubtful(x):
-	return x > 0.2 and x < 0.8
-
 def kaggle_ensemble(models):
 	outs = []
 	for modelpath in models:
@@ -38,21 +35,13 @@ def kaggle_ensemble(models):
 				inception='inception' in modelpath)
 			pickle.dump(out, open('../kaggle/' + modelpath, 'w'))
 			outs.append(out)
-
-	dog_probabs = [sum([m,n,o,p,q,r,s,t,u,v]) / 10 for m,n,o,p,q,r,s,t,u,v in zip(*outs)]
+	if len(outs) == 1: outs.append(outs[0])
+	dog_probabs = [sum([m,n,o]) / len(outs) for m,n,o in zip(*outs)]
 	kaggleTest(None, predict=False, dog_probabs=dog_probabs)
 
 if __name__ == '__main__':
 	include = [
-	'bestval1.h5',
-	'bestval11.h5',
-	'bestval2.h5',
-	'bestval22.h5',
-	'bestval33.h5',
-	'bestval4.h5',
-	'bestval44.h5',
-	'bestvalinception.h5',
+	'bestvalyet.h5',
 	'bestvalinception11.h5',
-	'bestvalinception111.h5',
 	]
 	kaggle_ensemble(include)

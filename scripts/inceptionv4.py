@@ -250,7 +250,6 @@ def inception_v4():
     net = AveragePooling2D((8,8), border_mode='valid')(net)
 
     # 1 x 1 x 1536
-    net = Dropout(0.2)(net)
     net = Flatten()(net)
 
     # 1536
@@ -261,15 +260,17 @@ def inception_v4():
     model.load_weights(TF_WEIGHTS_PATH, by_name=True)
 
     model = pop_layer(model)
-    batchnormed = BatchNormalization() (model.layers[-1].output)
-    dense = Dense(1024, activation='relu') (batchnormed)
-    batchnormed = BatchNormalization() (dense)
-    predictions = Dense(output_dim=1, activation='sigmoid')(batchnormed)
+    # batchnormed = BatchNormalization(axis=3) ()
+    # dense = Dense(128) (model.layers[-1].output)
+    # batchnormed = BatchNormalization() (model.layers[-1].output)
+    # relu = Activation('relu') (batchnormed)
+    # dropout = Dropout(0.5) (relu)
+    predictions = Dense(output_dim=1, activation='sigmoid')(model.layers[-1].output)
 
     model = Model(inputs, predictions, name='inception_v4')
 
     for layer in model.layers: 
-        if layer.name == 'merge_25': break
         layer.trainable = False
+        if layer.name == 'merge_25': break
         
     return model
