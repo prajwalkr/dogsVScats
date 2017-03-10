@@ -17,11 +17,8 @@ from scipy import ndimage
 from random import randint, choice, shuffle, sample
 from sys import setrecursionlimit, argv
 from utils import *
-from vgg import VGG_16 as vgg
 from resnet import ResNet50
 from inceptionv4 import inception_v4
-from spaced_rep import spacedRunner
-from squeezenet import SqueezeNet
 
 ROOT = dirname(dirname(abspath(__file__)))
 TRAIN_DIR, VAL_DIR = ROOT + '/train', ROOT + '/validation'
