@@ -32,7 +32,7 @@ What didn't turn out as expected
 - Mean subtraction + Dividing by Standard Deviation speeds up training 
 
 ### Using the trained models
-Download the trained models:
+Download the trained models: <br/>
 [ResNet50 finetuned (best model)][2] (Input shape: **350 x 350** x 3) <br/>
 [InceptionV3 finetuned (second best)][3] (Input shape: **299 x 299** x 3)
 
