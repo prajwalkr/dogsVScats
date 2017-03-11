@@ -19,13 +19,13 @@ What worked
 - Using Dropout on Dense Layers with Data Augmentation
 - Using Pretrained models works like magic! :pray:
 - Training small models (10 layers max) from scratch for 25000 images plateaus at double the logloss than when using pretrained models, in my case.  
-- Using larger image sizes improves accuracy till 350x350
+- Using larger image sizes improves accuracy till 350 x 350
 - Ensembling different models gives a very good accuracy boost. Higher the difference (different image sizes, different architectures etc.), better is the advantage of the ensemble.
 - Using the trained model to detect mistakes in the training and validation data! 
 
 What didn't turn out as expected
 -------------------
-- Going beyond the plateau logloss when training from scratch
+- Going beyond the plateau logloss when training from scratch was almost impossible; probably because the lower layers did not learn good enough representations with limited data.
 - Trying to finetune last conv block of the pretrained models leads to overfitting in my case. 
 - Using Dropout in conv layers leads to poor accuracy
 - Training even small models without BatchNorm and only using plain ReLU activations takes a huge amount of time. 
@@ -33,7 +33,7 @@ What didn't turn out as expected
 
 ### Using the trained models
 Download the trained models:
-[ResNet50 finetuned (best model)][2] (Input shape: **350 x 350** x 3)
+[ResNet50 finetuned (best model)][2] (Input shape: **350 x 350** x 3) <br/>
 [InceptionV3 finetuned (second best)][3] (Input shape: **299 x 299** x 3)
 
 ```python
