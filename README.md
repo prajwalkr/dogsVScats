@@ -2,7 +2,8 @@ Kaggle: Dogs vs Cats Kernel Redux Edition
 ------------------------------------------------------------
 
 This repository consists a solution for the [Cats vs Dogs classification challenge][1] on Kaggle. 
-This solution scored a logloss of 0.04973 (#60 / 1314 teams). Top score was 0.03303 (#1).
+<br/>
+This solution scored a logloss of **0.04973** (#**60** / 1314 teams). Top score was **0.03303 (#1)**.
 
 This repository also contains links to my best and second best CNN models below.
 
