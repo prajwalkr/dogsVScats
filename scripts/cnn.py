@@ -29,7 +29,7 @@ num_dogs_val = len(listdir(VAL_DIR + '/dogs'))
 samples_per_epoch = num_cats_train + num_dogs_train
 nb_val_samples = num_cats_val + num_dogs_val
 
-channels, img_width, img_height = 3, 275, 275
+channels, img_width, img_height = 3, 350, 350
 MAX_SIDE = 350
 mini_batch_sz = 24
 
@@ -191,7 +191,7 @@ def multicrop_model(preload=None):
 
 	return model
 
-def init_model(preload=None, declare=False, use_inception=False, use_resnet=True):
+def init_model(preload=None, declare=False, use_inception=True, use_resnet=False):
 	print 'Compiling model...'
 	if use_multiscale and use_inception and use_resnet: raise ValueError('Incorrect params')
 	if not declare and preload: return load_model(preload)
@@ -364,7 +364,8 @@ def DataGen():
 		batch_size=mini_batch_sz,
 		class_mode='binary', shuffle=False)
 
-	return standardized(train_generator, training=True, inception=False), standardized(validation_generator, inception=False)
+	return (standardized(train_generator, training=True, inception=False), 
+		standardized(validation_generator, inception=False))
 
 def runner(model, epochs):
 	initial_LR = 0.001
@@ -392,44 +393,23 @@ def runner(model, epochs):
 
 def save_failed(model):
 	_, v = DataGen()
-	# TEST_DIR = '../test/'
-	fnames = listdir(TEST_DIR)
-	# paths = [TEST_DIR + fname for fname in listdir(TEST_DIR)]
-	# gen = prep_data(paths, model.input_shape[1], model.input_shape[1], inception=False)
-	saved = 1000
-	# MEAN_VALUE = np.array([103.939, 116.779, 123.68])
-	# mean, stddev = pickle.load(open('meanSTDDEV'))
+	inception = False
+	wrong = 0
 	done = 0
-	# cat_pred, dog_pred = [],[]
-	# yt, yp = [], []
 	while 1:
 		X, y_true = v.next()
-		# X = gen.next()
-		# y_true = [0] * len(X)
 		y_pred = model.predict(X)
 		for i, pred in enumerate(y_pred):
-			if np.abs(pred[0] - y_true[i]) > 0.8: #pred[0] > 0.3 and pred[0] < 0.7:
-				# if pred[0] > 0.3 and pred[0] < 0.7:
-				# X[i] = (X[i] * stddev) + mean ((X[i] / 2.) + 1.) * 255
-				write_image(X[i], '../failures/{}'.format(fnames[done + i]), tf=True)
-				print '{} : {}'.format(fnames[done + i], pred[0])
-				saved -= 1
-			# if y_true[i] < 0.5: cat_pred.append(pred[0])
-			# else: dog_pred.append(pred[0])
-			# if pred[0] < 0.3:
-			# 	yp.append(0.)
-			# if pred[0] > 0.7:
-			# 	yp.append(1.)
-			# else:
-			# 	yp.append(0.7)
-			# yt.append(y_true[i])
+			if np.abs(pred[0] - y_true[i]) > 0.5:
+				if inception:
+					X[i] = (X[i] * stddev) + mean ((X[i] / 2.) + 1.) * 255
+				write_image(X[i], '../failures/{}.jpg'.format(randint(0,100000000)),tf=True)
+				wrong += 1
 
 		if done % 100 == 0: print done
 		done += len(X)
-		if done >= 57160 or saved <= 0: break
-	# print logloss(y_true, y_pred) / 5716
-	# print logloss([0.] * len(cat_pred), cat_pred), logloss([1.] * len(dog_pred), dog_pred)
-	# print float(sum(cat_pred) + sum(dog_pred)) / 5716.
+		if done >= 5296 or saved <= 0: break
+	print wrong
 
 def main(args):
 	if len(args) == 2: mode, preload = args
